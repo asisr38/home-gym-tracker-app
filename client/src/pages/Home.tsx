@@ -95,7 +95,7 @@ export default function Home() {
                   day.completed ? "bg-muted/20 border-primary/20" : "bg-card border-border/70",
                   day.id === nextWorkout.id && "ring-1 ring-primary border-primary"
                 )}
-                onClick={() => setLocation(`/plan`)}
+                onClick={() => setLocation(`/session/${day.id}`)}
               >
                 <div className={cn(
                   "h-10 w-10 rounded-md flex items-center justify-center font-bold text-sm mr-4 shadow-inner",

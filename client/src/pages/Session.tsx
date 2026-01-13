@@ -52,6 +52,43 @@ export default function Session() {
 
   const isRunDay = day.type === 'run' || day.type === 'recovery';
   const isLegDay = day.title.toLowerCase().includes('leg');
+  const hintText = (() => {
+    const title = day.title.toLowerCase();
+    if (day.type === "run") return "Easy pace. Breathe through the nose.";
+    if (day.type === "recovery") return "Light effort. Keep it restorative.";
+    if (title.includes("push")) return "Control the tempo. Full range.";
+    if (title.includes("pull")) return "Squeeze the back. No momentum.";
+    if (title.includes("leg")) return "Drive through heels. Stay tight.";
+    if (title.includes("shoulder")) return "Brace core. Smooth reps.";
+    if (title.includes("full body")) return "Keep rest short. Stay crisp.";
+    return "Quality reps. Leave 1-2 in reserve.";
+  })();
+  const exerciseHintMap: Record<string, string> = {
+    "DB Flat Bench Press": "Tuck elbows. Press straight up.",
+    "Incline DB Press": "Chest up. Control the descent.",
+    "Barbell Floor Press": "Pause on triceps. Drive hard.",
+    "EZ Skullcrushers": "Elbows fixed. Smooth arc.",
+    "Bench Dips": "Shoulders down. Full lockout.",
+    "Barbell RDL": "Hinge hips. Keep back flat.",
+    "Goblet Squats": "Chest tall. Knees track toes.",
+    "Walking Lunges": "Soft steps. Stay balanced.",
+    "Weighted Calf Raises": "Full stretch. Slow squeeze.",
+    "Barbell Bent-Over Row": "Brace core. Row to waist.",
+    "Single-Arm DB Row": "Pull elbow back. Pause.",
+    "EZ Bar Curls": "No swing. Full extension.",
+    "Reverse Grip Curls": "Wrists neutral. Slow reps.",
+    "DB Pullovers": "Ribs down. Long arc.",
+    "Barbell Overhead Press": "Glutes tight. Head through.",
+    "DB Lateral Raises": "Lead with elbows. Soft bend.",
+    "EZ Upright Rows": "Stop mid-chest. Elbows high.",
+    "Russian Twists": "Rotate ribs. Breathe steady.",
+    "Lying Leg Raises": "Lower slow. No arching.",
+    "DB Thrusters": "Drive legs. Smooth press.",
+    "Barbell Floor Wipers": "Controlled sweep. Brace core.",
+    "Renegade Rows": "Feet wide. Hips stable.",
+    "Decline Pushups": "Body straight. Full range.",
+    "Plank": "Ribs down. Hold steady.",
+  };
 
   return (
     <div className="min-h-screen app-shell flex justify-center">
@@ -71,6 +108,9 @@ export default function Session() {
         </div>
 
         <div className="p-4 space-y-6">
+          <div className="rounded-lg border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+            {hintText}
+          </div>
         
         {/* Lift Section */}
         {day.type === 'lift' && (
@@ -101,7 +141,12 @@ export default function Session() {
                 <Card className="border-0 shadow-lg bg-card">
                   <CardContent className="p-6">
                     <div className="flex justify-between items-start mb-6">
-                      <h3 className="text-2xl font-black uppercase leading-none">{ex.name}</h3>
+                      <div>
+                        <h3 className="text-2xl font-black uppercase leading-none">{ex.name}</h3>
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          {exerciseHintMap[ex.name] || "Focus on form. Controlled tempo."}
+                        </p>
+                      </div>
                       {/* Placeholder for video/info */}
                     </div>
 
