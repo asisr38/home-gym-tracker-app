@@ -1,4 +1,5 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { getAuthToken } from "./auth";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -12,9 +13,13 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
+  const token = await getAuthToken();
   const res = await fetch(url, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
+    headers: {
+      ...(data ? { "Content-Type": "application/json" } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
@@ -29,7 +34,18 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const res = await fetch(queryKey.join("/") as string, {
+    const token = await getAuthToken();
+    const [path, params] = queryKey as [string, Record<string, string> | undefined];
+    if (typeof path !== "string") {
+      throw new Error("Query key must start with a string path.");
+    }
+    const normalizedPath =
+      path.startsWith("http") || path.startsWith("/") ? path : `/api/${path}`;
+    const url = params
+      ? `${normalizedPath}?${new URLSearchParams(params).toString()}`
+      : normalizedPath;
+    const res = await fetch(url, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
       credentials: "include",
     });
 

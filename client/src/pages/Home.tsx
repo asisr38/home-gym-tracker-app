@@ -7,16 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import { Play, Calendar, Trophy, ChevronRight } from "lucide-react";
 import { useLocation } from "wouter";
 import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 export default function Home() {
-  const { profile, currentPlan, history } = useStore();
+  const { profile, currentPlan } = useStore();
   const [, setLocation] = useLocation();
 
-  // Determine "Today" based on startOfWeek
-  // For simplicity in this mock, we'll just pick the first incomplete day or the day matching current day of week relative to start
-  const todayIndex = (new Date().getDay() - profile.startOfWeek + 7) % 7;
-  // const todayWorkout = currentPlan.find(d => d.dayNumber === todayIndex + 1) || currentPlan[0];
-  
   // Actually, let's just find the next incomplete workout for "Continue" logic
   const nextWorkout = currentPlan.find(d => !d.completed) || currentPlan[0];
   
@@ -32,7 +28,7 @@ export default function Home() {
             <h1 className="text-2xl font-bold tracking-tight">Hello, {profile.name.split(' ')[0]}</h1>
             <p className="text-muted-foreground text-sm">{format(new Date(), "EEEE, MMM do")}</p>
           </div>
-          <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
+          <div className="h-10 w-10 rounded-full bg-primary/10 ring-1 ring-primary/30 flex items-center justify-center text-primary font-bold shadow-sm">
             {profile.name.charAt(0)}
           </div>
         </div>
@@ -40,8 +36,9 @@ export default function Home() {
         {/* Hero Card: Today's Workout */}
         <div className="relative group">
           <div className="absolute -inset-0.5 bg-gradient-to-r from-primary to-blue-600 rounded-xl blur opacity-75 group-hover:opacity-100 transition duration-1000 group-hover:duration-200 animate-tilt"></div>
-          <Card className="relative border-0 bg-card overflow-hidden">
-            <CardHeader className="pb-2">
+          <Card className="relative overflow-hidden border border-border/60 bg-gradient-to-br from-card via-card to-primary/10 shadow-xl">
+            <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-primary/20 blur-2xl" />
+            <CardHeader className="relative pb-2">
               <div className="flex justify-between items-center mb-1">
                 <Badge variant={nextWorkout.type === 'recovery' ? 'secondary' : 'default'} className="uppercase text-[10px] tracking-widest">
                   Day {nextWorkout.dayNumber} • {nextWorkout.type}
@@ -56,11 +53,11 @@ export default function Home() {
                 }
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="relative">
               {!nextWorkout.completed ? (
                 <Button 
                   size="lg" 
-                  className="w-full font-bold text-md group-hover:bg-primary/90 transition-all"
+                  className="w-full font-bold text-md group-hover:bg-primary/90 transition-all shadow-lg"
                   onClick={() => setLocation(`/session/${nextWorkout.id}`)}
                 >
                   <Play className="mr-2 h-5 w-5 fill-current" /> Start Session
@@ -94,14 +91,14 @@ export default function Home() {
               <div 
                 key={day.id} 
                 className={cn(
-                  "flex items-center p-3 rounded-lg border transition-all cursor-pointer hover:bg-muted/50",
-                  day.completed ? "bg-muted/20 border-primary/20" : "bg-card border-border",
+                  "flex items-center p-3 rounded-lg border transition-all cursor-pointer hover:bg-muted/40 hover:border-primary/40 hover:shadow-sm",
+                  day.completed ? "bg-muted/20 border-primary/20" : "bg-card border-border/70",
                   day.id === nextWorkout.id && "ring-1 ring-primary border-primary"
                 )}
                 onClick={() => setLocation(`/plan`)}
               >
                 <div className={cn(
-                  "h-10 w-10 rounded-md flex items-center justify-center font-bold text-sm mr-4",
+                  "h-10 w-10 rounded-md flex items-center justify-center font-bold text-sm mr-4 shadow-inner",
                   day.completed ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
                 )}>
                   {day.dayNumber}
@@ -122,8 +119,4 @@ export default function Home() {
       </div>
     </MobileShell>
   );
-}
-
-function cn(...classes: (string | undefined | null | false)[]) {
-  return classes.filter(Boolean).join(" ");
 }

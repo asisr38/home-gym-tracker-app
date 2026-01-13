@@ -50,8 +50,8 @@ export default function Onboarding() {
   };
 
   return (
-    <div className="min-h-screen bg-background p-6 flex items-center justify-center">
-      <Card className="w-full max-w-md border-0 shadow-none sm:border sm:shadow-sm">
+    <div className="min-h-screen app-shell p-6 flex items-center justify-center">
+      <Card className="w-full max-w-md border-border/60 shadow-2xl app-panel">
         <CardHeader>
           <CardTitle className="text-3xl font-bold tracking-tighter text-primary">IronStride</CardTitle>
           <CardDescription>

@@ -1,6 +1,5 @@
 import { useParams, useLocation } from "wouter";
 import { useStore, ExerciseSet } from "@/lib/store";
-import { MobileShell } from "@/components/layout/MobileShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -55,22 +54,23 @@ export default function Session() {
   const isLegDay = day.title.toLowerCase().includes('leg');
 
   return (
-    <div className="min-h-screen bg-background pb-24">
-      {/* Sticky Header */}
-      <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b p-4 flex items-center justify-between">
-        <Button variant="ghost" size="icon" onClick={() => setLocation("/")}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <div className="text-center">
-          <h2 className="font-bold text-sm uppercase tracking-wider">{day.title}</h2>
-          <p className="text-xs text-muted-foreground">Day {day.dayNumber}</p>
+    <div className="min-h-screen app-shell flex justify-center">
+      <div className="w-full max-w-md min-h-screen bg-background app-panel shadow-2xl ring-1 ring-black/5 dark:ring-white/10 border border-border/60 sm:rounded-[28px] pb-24">
+        {/* Sticky Header */}
+        <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b p-4 flex items-center justify-between">
+          <Button variant="ghost" size="icon" onClick={() => setLocation("/")}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div className="text-center">
+            <h2 className="font-bold text-sm uppercase tracking-wider">{day.title}</h2>
+            <p className="text-xs text-muted-foreground">Day {day.dayNumber}</p>
+          </div>
+          <Button size="sm" onClick={handleFinish} className="bg-green-600 hover:bg-green-700 text-white">
+            Finish
+          </Button>
         </div>
-        <Button size="sm" onClick={handleFinish} className="bg-green-600 hover:bg-green-700 text-white">
-          Finish
-        </Button>
-      </div>
 
-      <div className="p-4 space-y-6">
+        <div className="p-4 space-y-6">
         
         {/* Lift Section */}
         {day.type === 'lift' && (
@@ -106,45 +106,55 @@ export default function Session() {
                     </div>
 
                     <div className="space-y-3">
-                      <div className="grid grid-cols-10 gap-2 text-xs font-mono text-muted-foreground mb-2 text-center">
+                      <div className="grid grid-cols-8 sm:grid-cols-10 gap-2 text-[10px] sm:text-xs font-mono text-muted-foreground mb-2 text-center">
                         <div className="col-span-1">#</div>
-                        <div className="col-span-3">WEIGHT ({profile.units === 'imperial' ? 'lbs' : 'kg'})</div>
-                        <div className="col-span-3">REPS ({ex.sets[0].targetReps})</div>
+                        <div className="col-span-2 sm:col-span-3">WEIGHT ({profile.units === 'imperial' ? 'lbs' : 'kg'})</div>
+                        <div className="col-span-2 sm:col-span-3">REPS ({ex.sets[0].targetReps})</div>
                         <div className="col-span-1">✓</div>
                         <div className="col-span-2">★ Form</div>
                       </div>
 
                       {ex.sets.map((set, idx) => (
                         <div key={set.id} className={cn(
-                          "grid grid-cols-10 gap-2 items-center p-2 rounded-lg transition-colors",
+                          "grid grid-cols-8 sm:grid-cols-10 gap-2 items-center p-2 rounded-lg transition-colors",
                           set.completed ? "bg-primary/10" : "bg-muted/30"
                         )}>
                           <div className="col-span-1 text-center font-bold text-sm text-muted-foreground">{idx + 1}</div>
                           
-                          <div className="col-span-3">
+                          <div className="col-span-2 sm:col-span-3">
                             <Input 
                               type="number" 
                               placeholder="0" 
-                              className="text-center h-10 font-mono text-lg bg-background"
-                              value={set.weight || ''}
-                              onChange={(e) => handleSetUpdate(ex.id, set.id, 'weight', parseFloat(e.target.value))}
+                              className="text-center h-9 sm:h-10 font-mono text-base sm:text-lg bg-background"
+                              value={set.weight ?? ''}
+                              onChange={(e) => handleSetUpdate(
+                                ex.id,
+                                set.id,
+                                'weight',
+                                e.target.value === "" ? null : parseFloat(e.target.value)
+                              )}
                             />
                           </div>
                           
-                          <div className="col-span-3">
+                          <div className="col-span-2 sm:col-span-3">
                             <Input 
                               type="number" 
                               placeholder={set.targetReps}
-                              className="text-center h-10 font-mono text-lg bg-background"
-                              value={set.actualReps || ''}
-                              onChange={(e) => handleSetUpdate(ex.id, set.id, 'actualReps', parseFloat(e.target.value))}
+                              className="text-center h-9 sm:h-10 font-mono text-base sm:text-lg bg-background"
+                              value={set.actualReps ?? ''}
+                              onChange={(e) => handleSetUpdate(
+                                ex.id,
+                                set.id,
+                                'actualReps',
+                                e.target.value === "" ? null : parseFloat(e.target.value)
+                              )}
                             />
                           </div>
 
                           <div className="col-span-1 flex justify-center">
                             <Checkbox 
                               checked={set.completed}
-                              onCheckedChange={(checked) => handleSetUpdate(ex.id, set.id, 'completed', checked)}
+                              onCheckedChange={(checked) => handleSetUpdate(ex.id, set.id, 'completed', !!checked)}
                               className="h-6 w-6"
                             />
                           </div>
@@ -152,7 +162,7 @@ export default function Session() {
                           <div className="col-span-2 flex justify-center">
                             <Checkbox 
                                 checked={set.perfectForm}
-                                onCheckedChange={(checked) => handleSetUpdate(ex.id, set.id, 'perfectForm', checked)}
+                                onCheckedChange={(checked) => handleSetUpdate(ex.id, set.id, 'perfectForm', !!checked)}
                                 className="h-6 w-6 border-yellow-500 data-[state=checked]:bg-yellow-500 data-[state=checked]:text-black"
                               />
                           </div>
@@ -229,6 +239,7 @@ export default function Session() {
             onChange={(e) => setNotes(e.target.value)}
             className="min-h-[100px]"
           />
+        </div>
         </div>
       </div>
     </div>

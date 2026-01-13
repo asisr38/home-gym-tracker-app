@@ -2,7 +2,8 @@ import { useStore } from "@/lib/store";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { format } from "date-fns";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { cn } from "@/lib/utils";
 
 export default function History() {
   const { history, profile } = useStore();
@@ -24,7 +25,7 @@ export default function History() {
         {history.length > 0 ? (
           <>
              {/* Volume Chart */}
-            <Card>
+            <Card className="border-border/60 shadow-lg">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Sets Completed (Last 7 Sessions)</CardTitle>
               </CardHeader>
@@ -50,7 +51,7 @@ export default function History() {
             <div className="space-y-4">
               <h3 className="font-semibold">Recent Logs</h3>
               {[...history].reverse().map((day) => (
-                <Card key={day.dateCompleted + day.id} className="overflow-hidden">
+                <Card key={day.dateCompleted + day.id} className="overflow-hidden border-border/60 shadow-sm">
                   <div className="flex">
                     <div className={cn("w-2", day.type === 'lift' ? "bg-primary" : "bg-green-500")} />
                     <div className="flex-1 p-4">
@@ -93,8 +94,4 @@ export default function History() {
       </div>
     </MobileShell>
   );
-}
-
-function cn(...classes: (string | undefined | null | false)[]) {
-  return classes.filter(Boolean).join(" ");
 }

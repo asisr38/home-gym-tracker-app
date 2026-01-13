@@ -6,9 +6,11 @@ import { Separator } from "@/components/ui/separator";
 import { RotateCcw, Download, Upload } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/lib/auth";
 
 export default function Profile() {
   const { profile, exportData, importData, resetPlan } = useStore();
+  const { user, signOutUser } = useAuth();
   const { toast } = useToast();
 
   const handleExport = () => {
@@ -60,6 +62,10 @@ export default function Profile() {
                 <p className="font-mono text-lg">{profile.name}</p>
               </div>
               <div>
+                <p className="text-sm text-muted-foreground">Account</p>
+                <p className="font-mono text-xs">{user?.email || "Unknown"}</p>
+              </div>
+              <div>
                 <p className="text-sm text-muted-foreground">Weight</p>
                 <p className="font-mono text-lg">{profile.weight} {profile.units === 'imperial' ? 'lbs' : 'kg'}</p>
               </div>
@@ -80,6 +86,9 @@ export default function Profile() {
             <CardTitle>Data Management</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <Button variant="outline" className="w-full justify-start" onClick={signOutUser}>
+              Sign out
+            </Button>
             <Button variant="outline" className="w-full justify-start" onClick={handleExport}>
               <Download className="mr-2 h-4 w-4" /> Export Data (JSON)
             </Button>

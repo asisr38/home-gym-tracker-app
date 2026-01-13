@@ -1,59 +1,25 @@
-import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import { addDays, format, startOfWeek, differenceInDays } from 'date-fns';
+import { create } from "zustand";
+import {
+  createJSONStorage,
+  persist,
+  type StateStorage,
+} from "zustand/middleware";
+import {
+  userDataSchema,
+  type UserData,
+  type UserProfile,
+  type WorkoutDay,
+  type ExerciseSet,
+} from "@shared/userData";
 
-export type UnitSystem = 'imperial' | 'metric';
-export type DayType = 'lift' | 'run' | 'recovery';
-
-export interface ExerciseSet {
-  id: string;
-  targetReps: string; // "10-12" or "Failure"
-  actualReps: number | null;
-  weight: number | null;
-  completed: boolean;
-  perfectForm: boolean;
-}
-
-export interface Exercise {
-  id: string;
-  name: string;
-  sets: ExerciseSet[];
-  notes?: string;
-  restTimerSeconds?: number;
-  videoUrl?: string; // Placeholder for future
-}
-
-export interface WorkoutDay {
-  id: string;
-  dayNumber: number; // 1-7
-  title: string;
-  type: DayType;
-  exercises: Exercise[];
-  runTarget?: {
-    distance: number; // in miles/km
-    description: string;
-  };
-  completed: boolean;
-  dateCompleted?: string; // ISO string
-  notes?: string;
-  runActual?: {
-    distance: number;
-    timeSeconds: number;
-  };
-  calvesStretched?: boolean; // For leg day
-}
-
-export interface UserProfile {
-  name: string;
-  height: number;
-  weight: number;
-  goal: string;
-  units: UnitSystem;
-  dailyRunTarget: number;
-  nutritionTarget: string;
-  onboardingCompleted: boolean;
-  startOfWeek: number; // 0 = Sunday, 1 = Monday
-}
+export type {
+  UnitSystem,
+  DayType,
+  ExerciseSet,
+  Exercise,
+  WorkoutDay,
+  UserProfile,
+} from "@shared/userData";
 
 interface AppState {
   profile: UserProfile;
@@ -68,7 +34,24 @@ interface AppState {
   resetPlan: () => void; // Regenerate the week
   importData: (jsonData: string) => boolean;
   exportData: () => string;
+  applyUserData: (data: UserData) => void;
+  getUserData: () => UserData;
+  resetUserData: () => void;
 }
+
+let activeUserKey = "anonymous";
+
+const buildStorageKey = (name: string) => `${name}:${activeUserKey}`;
+
+export const setActiveUserId = (uid?: string | null) => {
+  activeUserKey = uid ? uid : "anonymous";
+};
+
+const userStorage: StateStorage = {
+  getItem: (name) => localStorage.getItem(buildStorageKey(name)),
+  setItem: (name, value) => localStorage.setItem(buildStorageKey(name), value),
+  removeItem: (name) => localStorage.removeItem(buildStorageKey(name)),
+};
 
 // Initial Template Data
 const INITIAL_PLAN: WorkoutDay[] = [
@@ -161,6 +144,9 @@ const INITIAL_PLAN: WorkoutDay[] = [
   }
 ];
 
+const buildInitialPlan = (): WorkoutDay[] =>
+  JSON.parse(JSON.stringify(INITIAL_PLAN)) as WorkoutDay[];
+
 export const useStore = create<AppState>()(
   persist(
     (set, get) => ({
@@ -176,7 +162,7 @@ export const useStore = create<AppState>()(
         startOfWeek: 1 // Monday
       },
       history: [],
-      currentPlan: INITIAL_PLAN,
+      currentPlan: buildInitialPlan(),
 
       updateProfile: (profile) => set((state) => ({ profile: { ...state.profile, ...profile } })),
       
@@ -199,45 +185,102 @@ export const useStore = create<AppState>()(
             })
           };
         });
-        return { currentPlan: newPlan };
+        const updatedDay = newPlan.find((day) => day.id === dayId);
+        const updatedHistory = updatedDay?.completed
+          ? state.history.map((entry) =>
+              entry.id === updatedDay.id &&
+              entry.dateCompleted === updatedDay.dateCompleted
+                ? updatedDay
+                : entry,
+            )
+          : state.history;
+        return { currentPlan: newPlan, history: updatedHistory };
       }),
 
       completeWorkout: (dayId, notes, runData, calvesStretched) => set((state) => {
         const day = state.currentPlan.find(d => d.id === dayId);
         if (!day) return {};
-        
+        const dateCompleted = day.dateCompleted || new Date().toISOString();
         const completedDay = { 
           ...day, 
           completed: true, 
-          dateCompleted: new Date().toISOString(),
+          dateCompleted,
           notes,
           runActual: runData,
           calvesStretched
         };
 
+        const existingIndex = state.history.findIndex(
+          (entry) =>
+            entry.id === completedDay.id &&
+            entry.dateCompleted === completedDay.dateCompleted,
+        );
+        const updatedHistory =
+          existingIndex >= 0
+            ? state.history.map((entry, index) =>
+                index === existingIndex ? completedDay : entry,
+              )
+            : [...state.history, completedDay];
+
         return {
-          history: [...state.history, completedDay],
+          history: updatedHistory,
           currentPlan: state.currentPlan.map(d => d.id === dayId ? completedDay : d)
         };
       }),
 
-      resetPlan: () => set({ currentPlan: INITIAL_PLAN }),
+      resetPlan: () => set({ currentPlan: buildInitialPlan() }),
 
-      exportData: () => JSON.stringify(get()),
+      exportData: () => JSON.stringify(get().getUserData()),
 
       importData: (json) => {
         try {
-          const data = JSON.parse(json);
-          set(data);
+          const data = userDataSchema.parse(JSON.parse(json));
+          set({
+            profile: data.profile,
+            history: data.history,
+            currentPlan: data.currentPlan,
+          });
           return true;
         } catch (e) {
           return false;
         }
-      }
+      },
+
+      applyUserData: (data) =>
+        set({
+          profile: data.profile,
+          history: data.history,
+          currentPlan: data.currentPlan,
+        }),
+
+      getUserData: () => ({
+        profile: get().profile,
+        history: get().history,
+        currentPlan: get().currentPlan,
+      }),
+
+      resetUserData: () =>
+        set({
+          profile: {
+            name: "",
+            height: 0,
+            weight: 0,
+            goal: "",
+            units: "imperial",
+            dailyRunTarget: 2,
+            nutritionTarget: "",
+            onboardingCompleted: false,
+            startOfWeek: 1,
+          },
+          history: [],
+          currentPlan: buildInitialPlan(),
+        }),
     }),
     {
       name: 'iron-stride-storage',
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => userStorage),
     }
   )
 );
+
+export const rehydrateStore = () => useStore.persist.rehydrate();
