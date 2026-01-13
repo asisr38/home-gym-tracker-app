@@ -10,6 +10,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { apiRequest } from "@/lib/queryClient";
 
 const profileSchema = z.object({
   name: z.string().min(2, "Name is required"),
@@ -26,6 +27,7 @@ type ProfileFormValues = z.infer<typeof profileSchema>;
 
 export default function Onboarding() {
   const completeOnboarding = useStore(state => state.completeOnboarding);
+  const getUserData = useStore(state => state.getUserData);
   const [, setLocation] = useLocation();
 
   const form = useForm<ProfileFormValues>({
@@ -40,11 +42,15 @@ export default function Onboarding() {
     }
   });
 
-  const onSubmit = (data: ProfileFormValues) => {
+  const onSubmit = async (data: ProfileFormValues) => {
     completeOnboarding({
       ...data,
       onboardingCompleted: true,
       nutritionTarget: data.nutritionTarget || ""
+    });
+    const payload = getUserData();
+    apiRequest("POST", "/api/user-data", payload).catch(() => {
+      // Best-effort sync; offline users can still proceed.
     });
     setLocation("/");
   };
