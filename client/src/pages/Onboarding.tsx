@@ -11,16 +11,28 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { apiRequest } from "@/lib/queryClient";
+import { Checkbox } from "@/components/ui/checkbox";
+
+const equipmentOptions = [
+  { value: "dumbbell", label: "Dumbbells" },
+  { value: "barbell", label: "Barbell" },
+  { value: "bench", label: "Bench" },
+  { value: "rack", label: "Rack/Pullup Bar" },
+  { value: "bands", label: "Resistance Bands" },
+  { value: "kettlebell", label: "Kettlebell" },
+];
 
 const profileSchema = z.object({
   name: z.string().min(2, "Name is required"),
   height: z.coerce.number().min(1, "Height is required"),
   weight: z.coerce.number().min(1, "Weight is required"),
   goal: z.string().min(1, "Goal is required"),
+  goalType: z.enum(["strength", "hypertrophy", "endurance", "fat_loss", "balanced"]),
   units: z.enum(["imperial", "metric"]),
   dailyRunTarget: z.coerce.number().min(0),
   nutritionTarget: z.string().optional(),
-  startOfWeek: z.coerce.number().min(0).max(6)
+  startOfWeek: z.coerce.number().min(0).max(6),
+  equipment: z.array(z.enum(["bodyweight", "dumbbell", "barbell", "bench", "rack", "bands", "kettlebell"])),
 });
 
 type ProfileFormValues = z.infer<typeof profileSchema>;
@@ -35,16 +47,23 @@ export default function Onboarding() {
     defaultValues: {
       name: "",
       goal: "Build Muscle & Endurance",
+      goalType: "balanced",
       units: "imperial",
       dailyRunTarget: 2,
       nutritionTarget: "2500 cal / 180g protein",
-      startOfWeek: 1
+      startOfWeek: 1,
+      equipment: ["bodyweight", "dumbbell", "bench"],
     }
   });
+  const selectedEquipment = form.watch("equipment");
 
   const onSubmit = async (data: ProfileFormValues) => {
+    const equipment = data.equipment.includes("bodyweight")
+      ? data.equipment
+      : ["bodyweight", ...data.equipment];
     completeOnboarding({
       ...data,
+      equipment,
       onboardingCompleted: true,
       nutritionTarget: data.nutritionTarget || ""
     });
@@ -126,6 +145,66 @@ export default function Onboarding() {
             <div className="space-y-2">
               <Label htmlFor="nutritionTarget">Nutrition Goals</Label>
               <Input id="nutritionTarget" {...form.register("nutritionTarget")} placeholder="e.g. 2500 cal, 180g protein" className="bg-muted/50" />
+            </div>
+
+            <Separator />
+
+            <div className="space-y-2">
+              <Label>Primary Goal</Label>
+              <Select onValueChange={(val) => form.setValue("goalType", val as ProfileFormValues["goalType"])} defaultValue="balanced">
+                <SelectTrigger className="bg-muted/50">
+                  <SelectValue placeholder="Select goal focus" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="strength">Strength</SelectItem>
+                  <SelectItem value="hypertrophy">Muscle Gain</SelectItem>
+                  <SelectItem value="endurance">Endurance</SelectItem>
+                  <SelectItem value="fat_loss">Fat Loss</SelectItem>
+                  <SelectItem value="balanced">Balanced</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="goal">Goal Detail</Label>
+              <Input id="goal" {...form.register("goal")} placeholder="e.g. Build muscle & endurance" className="bg-muted/50" />
+            </div>
+
+            <div className="space-y-3">
+              <Label>Equipment Available</Label>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground">
+                  <Checkbox checked disabled className="h-4 w-4" />
+                  Bodyweight (always)
+                </label>
+                {equipmentOptions.map((option) => {
+                  const selected = selectedEquipment.includes(option.value as ProfileFormValues["equipment"][number]);
+                  return (
+                    <label
+                      key={option.value}
+                      className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/40 px-3 py-2 text-xs font-medium text-foreground"
+                    >
+                      <Checkbox
+                        checked={selected}
+                        onCheckedChange={(checked) => {
+                          const next = new Set(selectedEquipment);
+                          if (checked) {
+                            next.add(option.value as ProfileFormValues["equipment"][number]);
+                          } else {
+                            next.delete(option.value as ProfileFormValues["equipment"][number]);
+                          }
+                          form.setValue("equipment", Array.from(next));
+                        }}
+                        className="h-4 w-4"
+                      />
+                      {option.label}
+                    </label>
+                  );
+                })}
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                Used to tailor the plan to what you have at home.
+              </p>
             </div>
 
             <Button type="submit" className="w-full text-lg h-12">Start Training</Button>

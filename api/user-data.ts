@@ -2,6 +2,19 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { firestore, firebaseAuth } from "../server/firebase";
 import { userDataSchema } from "../shared/userData";
 
+const MAX_HISTORY_DAYS = 30;
+const MS_IN_DAY = 24 * 60 * 60 * 1000;
+
+const pruneHistory = (history: Array<{ dateCompleted?: string }>) => {
+  const cutoff = Date.now() - MAX_HISTORY_DAYS * MS_IN_DAY;
+  return history.filter((day) => {
+    if (!day.dateCompleted) return true;
+    const timestamp = Date.parse(day.dateCompleted);
+    if (Number.isNaN(timestamp)) return true;
+    return timestamp >= cutoff;
+  });
+};
+
 async function getUserId(req: VercelRequest, res: VercelResponse) {
   const authHeader = req.headers.authorization || "";
   const match = authHeader.match(/^Bearer (.+)$/);
@@ -37,8 +50,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (req.method === "POST") {
-    const payload =
-      typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    let payload: unknown = req.body;
+    if (typeof req.body === "string") {
+      try {
+        payload = JSON.parse(req.body);
+      } catch {
+        res.status(400).json({ message: "Invalid JSON payload." });
+        return;
+      }
+    }
     const parseResult = userDataSchema.safeParse(payload);
     if (!parseResult.success) {
       res.status(400).json({ message: "Invalid data payload." });
@@ -46,9 +66,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const docRef = firestore.collection("userData").doc(uid);
+    const prunedData = {
+      ...parseResult.data,
+      history: pruneHistory(parseResult.data.history),
+    };
     await docRef.set(
       {
-        ...parseResult.data,
+        ...prunedData,
         updatedAt: Date.now(),
       },
       { merge: true },

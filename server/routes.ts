@@ -4,6 +4,19 @@ import { requireUser, type AuthedRequest } from "./auth";
 import { firestore } from "./firebase";
 import { userDataSchema } from "@shared/userData";
 
+const MAX_HISTORY_DAYS = 30;
+const MS_IN_DAY = 24 * 60 * 60 * 1000;
+
+const pruneHistory = (history: Array<{ dateCompleted?: string }>) => {
+  const cutoff = Date.now() - MAX_HISTORY_DAYS * MS_IN_DAY;
+  return history.filter((day) => {
+    if (!day.dateCompleted) return true;
+    const timestamp = Date.parse(day.dateCompleted);
+    if (Number.isNaN(timestamp)) return true;
+    return timestamp >= cutoff;
+  });
+};
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -31,9 +44,13 @@ export async function registerRoutes(
     }
 
     const docRef = firestore.collection("userData").doc(user.uid);
+    const prunedData = {
+      ...parseResult.data,
+      history: pruneHistory(parseResult.data.history),
+    };
     await docRef.set(
       {
-        ...parseResult.data,
+        ...prunedData,
         updatedAt: Date.now(),
       },
       { merge: true },

@@ -2,15 +2,42 @@ import { useStore } from "@/lib/store";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, Circle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { CheckCircle2, Circle, Pencil, Trash2, X, Check } from "lucide-react";
+import { useState } from "react";
+import { AddExerciseDialog } from "@/components/AddExerciseDialog";
 
 export default function Plan() {
-  const { currentPlan } = useStore();
+  const { currentPlan, profile, addExerciseToDay, removeExerciseFromDay } = useStore();
+  const [isEditing, setIsEditing] = useState(false);
+  const goalLabelMap: Record<string, string> = {
+    strength: "Strength",
+    hypertrophy: "Muscle Gain",
+    endurance: "Endurance",
+    fat_loss: "Fat Loss",
+    balanced: "Balanced",
+  };
 
   return (
     <MobileShell>
       <div className="p-6 space-y-6">
-        <h1 className="text-2xl font-bold">Training Schedule</h1>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Training Schedule</h1>
+            <p className="text-xs text-muted-foreground">
+              Tailored for {goalLabelMap[profile.goalType]} using {profile.equipment.length} equipment options.
+            </p>
+          </div>
+          <Button
+            variant={isEditing ? "default" : "outline"}
+            size="sm"
+            onClick={() => setIsEditing(!isEditing)}
+            className="gap-2"
+          >
+            {isEditing ? <Check className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
+            {isEditing ? "Done" : "Edit"}
+          </Button>
+        </div>
 
         <Accordion type="single" collapsible className="w-full space-y-2">
           {currentPlan.map((day) => (
@@ -34,16 +61,37 @@ export default function Plan() {
                 <div className="space-y-3 pl-8 border-l ml-2.5 border-dashed">
                   {day.exercises.length > 0 ? (
                     day.exercises.map((ex) => (
-                      <div key={ex.id} className="text-sm">
-                        <div className="font-medium">{ex.name}</div>
-                        <div className="text-xs text-muted-foreground font-mono">
-                          {ex.sets.length} x {ex.sets[0].targetReps}
+                      <div key={ex.id} className="text-sm flex items-center justify-between group">
+                        <div className="flex-1">
+                          <div className="font-medium">{ex.name}</div>
+                          <div className="text-xs text-muted-foreground font-mono">
+                            {ex.sets.length} x {ex.sets[0].targetReps}
+                          </div>
                         </div>
+                        {isEditing && (
+                           <Button 
+                             variant="ghost" 
+                             size="icon" 
+                             className="h-8 w-8 text-destructive opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+                             onClick={(e) => {
+                               e.stopPropagation();
+                               removeExerciseFromDay(day.id, ex.id);
+                             }}
+                           >
+                             <Trash2 className="h-4 w-4" />
+                           </Button>
+                        )}
                       </div>
                     ))
                   ) : (
                     <div className="text-sm text-muted-foreground">
                       {day.runTarget?.description || "Rest & Recovery"}
+                    </div>
+                  )}
+                  
+                  {isEditing && (
+                    <div className="pt-2">
+                       <AddExerciseDialog onAdd={(ex) => addExerciseToDay(day.id, ex)} />
                     </div>
                   )}
                 </div>

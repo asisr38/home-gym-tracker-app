@@ -12,6 +12,13 @@ export default function Profile() {
   const { profile, exportData, importData, resetPlan } = useStore();
   const { user, signOutUser } = useAuth();
   const { toast } = useToast();
+  const goalLabelMap: Record<string, string> = {
+    strength: "Strength",
+    hypertrophy: "Muscle Gain",
+    endurance: "Endurance",
+    fat_loss: "Fat Loss",
+    balanced: "Balanced",
+  };
 
   const handleExport = () => {
     const data = exportData();
@@ -72,6 +79,23 @@ export default function Profile() {
               <div className="col-span-2">
                 <p className="text-sm text-muted-foreground">Goal</p>
                 <p className="font-medium">{profile.goal}</p>
+              </div>
+              <div className="col-span-2">
+                <p className="text-sm text-muted-foreground">Goal Focus</p>
+                <p className="font-medium">{goalLabelMap[profile.goalType]}</p>
+              </div>
+              <div className="col-span-2">
+                <p className="text-sm text-muted-foreground">Equipment</p>
+                <div className="flex flex-wrap gap-2">
+                  {profile.equipment.map((item) => (
+                    <span
+                      key={item}
+                      className="rounded-full border border-border/60 bg-muted/60 px-2 py-1 text-[10px] uppercase tracking-wide text-muted-foreground"
+                    >
+                      {item.replace("_", " ")}
+                    </span>
+                  ))}
+                </div>
               </div>
               <div className="col-span-2">
                 <p className="text-sm text-muted-foreground">Nutrition</p>

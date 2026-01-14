@@ -1,6 +1,7 @@
 import { Switch, Route, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useStore } from "@/lib/store";
@@ -13,6 +14,7 @@ import Session from "@/pages/Session";
 import Profile from "@/pages/Profile";
 import Plan from "@/pages/Plan"; // Need to create
 import History from "@/pages/History"; // Need to create
+import WeeklyBreakdown from "@/pages/WeeklyBreakdown";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import ForgotPassword from "@/pages/ForgotPassword";
@@ -57,12 +59,33 @@ function Router() {
       <Route path="/profile" component={Profile} />
       <Route path="/plan" component={Plan} />
       <Route path="/history" component={History} />
+      <Route path="/weekly" component={WeeklyBreakdown} />
       <Route>{() => <Redirect to="/" />}</Route>
     </Switch>
   );
 }
 
 function App() {
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const root = document.documentElement;
+    const media = window.matchMedia("(prefers-color-scheme: light)");
+    const applyTheme = () => {
+      if (media.matches) {
+        root.classList.add("light");
+      } else {
+        root.classList.remove("light");
+      }
+    };
+    applyTheme();
+    if (media.addEventListener) {
+      media.addEventListener("change", applyTheme);
+      return () => media.removeEventListener("change", applyTheme);
+    }
+    media.addListener(applyTheme);
+    return () => media.removeListener(applyTheme);
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>

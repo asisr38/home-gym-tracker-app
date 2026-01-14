@@ -68,6 +68,10 @@ export function useUserDataSync(user: User | null) {
         const remoteData = await fetchUserData(user);
         if (remoteData) {
           useStore.getState().applyUserData(remoteData);
+          const localData = useStore.getState().getUserData();
+          if (remoteData.history.length > localData.history.length) {
+            await saveUserData(user, localData);
+          }
         } else {
           await saveUserData(user, useStore.getState().getUserData());
         }

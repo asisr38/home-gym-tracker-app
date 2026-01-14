@@ -20,7 +20,10 @@ export default function History() {
   return (
     <MobileShell>
       <div className="p-6 space-y-6">
-        <h1 className="text-2xl font-bold">History & Progress</h1>
+        <div>
+          <h1 className="text-2xl font-bold">History & Progress</h1>
+          <p className="text-xs text-muted-foreground">Showing the last 30 days of sessions.</p>
+        </div>
 
         {history.length > 0 ? (
           <>
@@ -87,7 +90,7 @@ export default function History() {
           </>
         ) : (
           <div className="text-center py-12 text-muted-foreground">
-            <p>No workouts completed yet.</p>
+            <p>No sessions logged yet.</p>
             <p className="text-sm">Start a session from the Home screen.</p>
           </div>
         )}
