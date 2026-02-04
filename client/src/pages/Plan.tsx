@@ -52,7 +52,9 @@ export default function Plan() {
                   <div className="text-left flex-1">
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-sm">Day {day.dayNumber}: {day.title}</span>
-                      <Badge variant="outline" className="text-[10px] h-5 capitalize">{day.type}</Badge>
+                      <Badge variant="outline" className="text-[10px] h-5 capitalize">
+                        {day.dayType || day.type}
+                      </Badge>
                     </div>
                   </div>
                 </div>

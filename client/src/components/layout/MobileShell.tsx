@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Home, Dumbbell, History, User } from "lucide-react";
+import { Home, Dumbbell, BarChart3, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface MobileShellProps {
@@ -12,8 +12,8 @@ export function MobileShell({ children }: MobileShellProps) {
   const navItems = [
     { href: "/", icon: Home, label: "Today" },
     { href: "/plan", icon: Dumbbell, label: "Plan" },
-    { href: "/history", icon: History, label: "History" },
-    { href: "/profile", icon: User, label: "Profile" },
+    { href: "/history", icon: BarChart3, label: "Progress" },
+    { href: "/profile", icon: Settings, label: "Settings" },
   ];
 
   return (

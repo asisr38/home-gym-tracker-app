@@ -5,15 +5,35 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent } from "@/components/ui/card";
 import { ArrowLeft, Timer } from "lucide-react";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
+import { ToastAction } from "@/components/ui/toast";
+
+const DEFAULT_REST_SECONDS = 90;
+const SWIPE_THRESHOLD = 60;
+
+const parseTargetReps = (value: string) => {
+  const match = value.match(/\d+/);
+  return match ? parseInt(match[0], 10) : null;
+};
 
 export default function Session() {
   const { id } = useParams();
   const [, setLocation] = useLocation();
-  const { currentPlan, logSet, logWorkoutSet, completeWorkout, profile, setLogs, history } = useStore();
+  const {
+    currentPlan,
+    logSet,
+    logWorkoutSet,
+    completeWorkout,
+    undoCompleteWorkout,
+    updateWorkoutNotes,
+    updateRunDraft,
+    profile,
+    setLogs,
+    history,
+  } = useStore();
   const { toast } = useToast();
   
   const day = currentPlan.find(d => d.id === id);
@@ -52,7 +72,6 @@ export default function Session() {
   };
   const resolvedDay = day || (currentPlan.length === 0 ? fallbackWorkout : null);
   const isMockDay = !day && currentPlan.length === 0;
-  const [activeTab, setActiveTab] = useState<string>("");
   const [notes, setNotes] = useState("");
   const [runDistance, setRunDistance] = useState("");
   const [runTime, setRunTime] = useState("");
@@ -62,14 +81,7 @@ export default function Session() {
   const [restRemaining, setRestRemaining] = useState<number | null>(null);
   const [restRunning, setRestRunning] = useState(false);
   const [restComplete, setRestComplete] = useState(false);
-  // Assumption: default rest timer is 90s for most lifts.
-  const DEFAULT_REST_SECONDS = 90;
-
-  useEffect(() => {
-    if (resolvedDay && resolvedDay.exercises.length > 0) {
-      setActiveTab(resolvedDay.exercises[0].id);
-    }
-  }, [resolvedDay]);
+  const swipeStartRef = useRef(new Map<string, number>());
 
   useEffect(() => {
     setLogInputs({});
@@ -79,12 +91,22 @@ export default function Session() {
   }, [resolvedDay?.id]);
 
   useEffect(() => {
-    if (!resolvedDay || !isRunDay) return;
-    if (runDistance === "") {
-      const defaultDistance = resolvedDay.runTarget?.distance ?? profile.dailyRunTarget;
-      setRunDistance(defaultDistance.toString());
+    if (!resolvedDay) return;
+    setNotes(resolvedDay.notes || "");
+    setCalvesStretched(!!resolvedDay.calvesStretched);
+    if (resolvedDay.runActual?.distance) {
+      setRunDistance(resolvedDay.runActual.distance.toString());
+    } else if (resolvedDay.runTarget?.distance && isRunDay) {
+      setRunDistance(resolvedDay.runTarget.distance.toString());
+    } else {
+      setRunDistance("");
     }
-  }, [resolvedDay, isRunDay, profile.dailyRunTarget, runDistance]);
+    if (resolvedDay.runActual?.timeSeconds) {
+      setRunTime((resolvedDay.runActual.timeSeconds / 60).toString());
+    } else {
+      setRunTime("");
+    }
+  }, [resolvedDay?.id, isRunDay]);
 
   useEffect(() => {
     if (!restRunning || restRemaining === null) return;
@@ -131,8 +153,9 @@ export default function Session() {
     [...setLogs]
       .sort((a, b) => b.timestamp - a.timestamp)
       .forEach((log) => {
-        if (!map.has(log.exerciseId) && log.weight !== null) {
-          map.set(log.exerciseId, log.weight);
+        const key = log.exerciseName || log.exerciseId;
+        if (!map.has(key) && log.weight !== null) {
+          map.set(key, log.weight);
         }
       });
     [...history]
@@ -143,10 +166,11 @@ export default function Session() {
       })
       .forEach((dayEntry) => {
         dayEntry.exercises.forEach((exercise) => {
-          if (map.has(exercise.id)) return;
+          const key = exercise.name;
+          if (map.has(key)) return;
           const lastSetWithWeight = [...exercise.sets].reverse().find((set) => set.weight !== null);
           if (lastSetWithWeight?.weight !== null && lastSetWithWeight?.weight !== undefined) {
-            map.set(exercise.id, lastSetWithWeight.weight);
+            map.set(key, lastSetWithWeight.weight);
           }
         });
       });
@@ -169,10 +193,34 @@ export default function Session() {
     logSet(resolvedDay.id, exerciseId, setId, { [field]: value });
   };
 
-  const handleQuickLog = (exerciseId: string) => {
-    const input = logInputs[exerciseId] || { weight: "", reps: "" };
+  const unitLabel = profile.units === "imperial" ? "lbs" : "kg";
+  const weightStep = profile.units === "imperial" ? 5 : 2.5;
+
+  const adjustQuickWeight = (exerciseId: string, fallbackWeight?: number, delta = 0) => {
+    setLogInputs((prev) => {
+      const current = prev[exerciseId]?.weight ?? (fallbackWeight?.toString() ?? "");
+      const parsed = parseFloat(current || "0");
+      const base = Number.isNaN(parsed) ? 0 : parsed;
+      const nextValue = Math.max(0, base + delta);
+      return {
+        ...prev,
+        [exerciseId]: {
+          weight: nextValue ? nextValue.toString() : "",
+          reps: prev[exerciseId]?.reps ?? "",
+        },
+      };
+    });
+  };
+
+  const handleQuickLog = (exerciseId: string, targetReps: string, fallbackWeight?: number) => {
+    const input = logInputs[exerciseId] || {
+      weight: fallbackWeight !== undefined ? fallbackWeight.toString() : "",
+      reps: "",
+    };
+    const fallbackReps = parseTargetReps(targetReps);
     const rawWeight = input.weight.trim() === "" ? null : parseFloat(input.weight);
-    const rawReps = input.reps.trim() === "" ? null : parseFloat(input.reps);
+    const rawReps =
+      input.reps.trim() === "" && fallbackReps !== null ? fallbackReps : parseFloat(input.reps);
     const weightValue = rawWeight === null || Number.isNaN(rawWeight) ? null : rawWeight;
     const repsValue = rawReps === null || Number.isNaN(rawReps) ? null : rawReps;
     logWorkoutSet(resolvedDay.id, exerciseId, { weight: weightValue, reps: repsValue });
@@ -183,14 +231,36 @@ export default function Session() {
     startRestTimer();
   };
 
-  const handleFinish = () => {
-    if (resolvedDay.type === "lift" && totalSets > 0 && completedSets < totalSets) {
-      const shouldContinue = confirm(
-        `You have ${totalSets - completedSets} unchecked sets. Finish anyway?`,
-      );
-      if (!shouldContinue) return;
-    }
+  const handleSwipeStart = (key: string, clientX: number) => {
+    swipeStartRef.current.set(key, clientX);
+  };
 
+  const handleSwipeMove = (
+    key: string,
+    clientX: number,
+    isCompleted: boolean,
+    exerciseId: string,
+    setId: string,
+  ) => {
+    const start = swipeStartRef.current.get(key);
+    if (start === undefined) return;
+    const delta = clientX - start;
+    if (delta > SWIPE_THRESHOLD) {
+      swipeStartRef.current.delete(key);
+      if (!isCompleted) {
+        handleSetUpdate(exerciseId, setId, "completed", true);
+        if (navigator.vibrate) {
+          navigator.vibrate(10);
+        }
+      }
+    }
+  };
+
+  const handleSwipeEnd = (key: string) => {
+    swipeStartRef.current.delete(key);
+  };
+
+  const handleFinish = () => {
     const distanceValue = runDistance.trim() === "" ? null : parseFloat(runDistance);
     const timeValue = runTime.trim() === "" ? null : parseFloat(runTime) * 60;
     const hasRunData = distanceValue !== null || timeValue !== null;
@@ -203,9 +273,25 @@ export default function Session() {
         : undefined;
 
     completeWorkout(resolvedDay.id, notes, runData, calvesStretched);
+    const completedAt =
+      useStore.getState().currentPlan.find((entry) => entry.id === resolvedDay.id)?.dateCompleted;
     toast({
-      title: "Workout Completed!",
-      description: "Great job. Rest up and hydrate.",
+      title: "Workout completed",
+      description:
+        resolvedDay.type === "lift" && totalSets > 0 && completedSets < totalSets
+          ? "Finished early. You can undo if you want to keep going."
+          : "Great job. Rest up and hydrate.",
+      action: (
+        <ToastAction
+          altText="Undo completion"
+          onClick={() => {
+            undoCompleteWorkout(resolvedDay.id, completedAt);
+            setLocation(`/session/${resolvedDay.id}`);
+          }}
+        >
+          Undo
+        </ToastAction>
+      ),
     });
     setLocation("/");
   };
@@ -222,61 +308,6 @@ export default function Session() {
     if (title.includes("full body")) return "Keep rest short. Stay crisp.";
     return "Quality reps. Leave 1-2 in reserve.";
   })();
-  const exerciseHintMap: Record<string, string> = {
-    "Barbell Bench Press": "Pinch shoulder blades. Drive feet.",
-    "Band Chest Press": "Stay stacked. Smooth lockout.",
-    "DB Flat Bench Press": "Tuck elbows. Press straight up.",
-    "Incline DB Press": "Chest up. Control the descent.",
-    "Feet-Elevated Pushups": "Brace core. Touch chest softly.",
-    "Band Incline Press": "Slow lower. Explode up.",
-    "Barbell Floor Press": "Pause on triceps. Drive hard.",
-    "Pushups": "Straight line. Elbows at 45 deg.",
-    "EZ Skullcrushers": "Elbows fixed. Smooth arc.",
-    "DB Skullcrushers": "Lower to temples. No flare.",
-    "Band Triceps Pressdown": "Lock elbows. Full squeeze.",
-    "Bench Dips": "Shoulders down. Full lockout.",
-    "Barbell RDL": "Hinge hips. Keep back flat.",
-    "DB RDL": "Soft knees. Hips back.",
-    "KB RDL": "Hinge, don't squat.",
-    "Band Good Morning": "Push hips back. Flat spine.",
-    "Single-Leg RDL": "Hips square. Slow lower.",
-    "Goblet Squats": "Chest tall. Knees track toes.",
-    "Front Squat": "Elbows high. Brace core.",
-    "Bodyweight Squats": "Sit back. Full depth.",
-    "Walking Lunges": "Soft steps. Stay balanced.",
-    "DB Walking Lunges": "Stay tall. Control knee.",
-    "Weighted Calf Raises": "Full stretch. Slow squeeze.",
-    "Single-Leg Calf Raises": "Pause at top.",
-    "Hip Thrust": "Chin tucked. Full hip lockout.",
-    "Glute Bridge": "Ribs down. Squeeze glutes.",
-    "Barbell Bent-Over Row": "Brace core. Row to waist.",
-    "Single-Arm DB Row": "Pull elbow back. Pause.",
-    "Band Row": "Squeeze shoulder blades.",
-    "Inverted Row": "Body tight. Pull to chest.",
-    "EZ Bar Curls": "No swing. Full extension.",
-    "DB Curls": "Elbows still. Slow lower.",
-    "Band Curls": "Full squeeze. Control down.",
-    "Reverse Grip Curls": "Wrists neutral. Slow reps.",
-    "DB Pullovers": "Ribs down. Long arc.",
-    "Barbell Overhead Press": "Glutes tight. Head through.",
-    "DB Overhead Press": "Stack wrist over elbow.",
-    "Kettlebell Press": "Grip tight. No lean.",
-    "DB Lateral Raises": "Lead with elbows. Soft bend.",
-    "Band Lateral Raises": "Stop at shoulder height.",
-    "EZ Upright Rows": "Stop mid-chest. Elbows high.",
-    "Russian Twists": "Rotate ribs. Breathe steady.",
-    "Lying Leg Raises": "Lower slow. No arching.",
-    "Dead Bug": "Press low back down.",
-    "DB Thrusters": "Drive legs. Smooth press.",
-    "Barbell Thrusters": "Brace core. Fast dip.",
-    "Barbell Floor Wipers": "Controlled sweep. Brace core.",
-    "Renegade Rows": "Feet wide. Hips stable.",
-    "Band Rows": "Elbows tight. Full squeeze.",
-    "Decline Pushups": "Body straight. Full range.",
-    "Plank": "Ribs down. Hold steady.",
-    "Side Plank": "Stack hips. Long neck.",
-  };
-
   return (
     <div className="min-h-screen app-shell flex justify-center">
       <div className="w-full max-w-md min-h-screen bg-background app-panel shadow-2xl ring-1 ring-black/5 dark:ring-white/10 border border-border/60 sm:rounded-[28px] pb-24">
@@ -369,176 +400,162 @@ export default function Session() {
           )}
 
           {resolvedDay.type === "lift" && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold">Quick Log</h3>
-                <span className="text-[10px] text-muted-foreground">Auto-starts 90s rest</span>
-              </div>
-              <div className="space-y-3">
-                {resolvedDay.exercises.map((exercise) => {
-                  const lastWeight = lastWeightByExercise.get(exercise.id);
-                  const targetReps = exercise.sets[0]?.targetReps ?? "8-12";
-                  const inputs = logInputs[exercise.id] || { weight: "", reps: "" };
-                  return (
-                    <Card key={exercise.id} className="border-border/60 shadow-sm">
-                      <CardContent className="p-4 space-y-3">
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <p className="text-sm font-semibold">{exercise.name}</p>
-                            <p className="text-[11px] text-muted-foreground">
-                              {exercise.sets.length} x {targetReps} • Last {lastWeight ?? "--"} {profile.units === "imperial" ? "lbs" : "kg"}
-                            </p>
+            <div className="space-y-4">
+              {resolvedDay.exercises.map((exercise) => {
+                const lastWeight = lastWeightByExercise.get(exercise.name);
+                const targetReps = exercise.sets[0]?.targetReps ?? "8-12";
+                const inputs = logInputs[exercise.id] || {
+                  weight: lastWeight === null || lastWeight === undefined ? "" : lastWeight.toString(),
+                  reps: "",
+                };
+
+                return (
+                  <Card key={exercise.id} className="border-border/60 shadow-sm">
+                    <CardContent className="p-4 space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <button
+                          type="button"
+                          className="text-left"
+                          onClick={() => setLocation(`/exercise/${resolvedDay.id}/${exercise.id}`)}
+                        >
+                          <p className="text-base font-semibold">{exercise.name}</p>
+                          <p className="text-[11px] text-muted-foreground">
+                            {exercise.sets.length} x {targetReps} • {exercise.muscleGroup || "Full Body"}
+                          </p>
+                        </button>
+                        <div className="text-right text-[11px] text-muted-foreground">
+                          <div>Last</div>
+                          <div className="font-mono text-sm text-foreground">
+                            {lastWeight ?? "--"} {unitLabel}
                           </div>
                         </div>
-                        <div className="grid grid-cols-3 gap-2">
-                          <Input
-                            type="number"
-                            placeholder={`Weight (${profile.units === "imperial" ? "lbs" : "kg"})`}
-                            value={inputs.weight}
-                            onChange={(e) =>
-                              setLogInputs((prev) => ({
-                                ...prev,
-                                [exercise.id]: { ...inputs, weight: e.target.value },
-                              }))
-                            }
-                            className="h-11 text-sm"
-                          />
-                          <Input
-                            type="number"
-                            placeholder={`Reps (${targetReps})`}
-                            value={inputs.reps}
-                            onChange={(e) =>
-                              setLogInputs((prev) => ({
-                                ...prev,
-                                [exercise.id]: { ...inputs, reps: e.target.value },
-                              }))
-                            }
-                            className="h-11 text-sm"
-                          />
-                          <Button
-                            type="button"
-                            className="h-11 text-sm"
-                            onClick={() => handleQuickLog(exercise.id)}
-                          >
-                            Log Set
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
+                      </div>
+
+                      <div className="grid grid-cols-6 gap-2 items-center">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-11"
+                          onClick={() => adjustQuickWeight(exercise.id, lastWeight, -weightStep)}
+                        >
+                          -
+                        </Button>
+                        <Input
+                          type="number"
+                          placeholder={`Weight (${unitLabel})`}
+                          value={inputs.weight}
+                          onChange={(e) =>
+                            setLogInputs((prev) => ({
+                              ...prev,
+                              [exercise.id]: { ...inputs, weight: e.target.value },
+                            }))
+                          }
+                          className="h-11 text-sm col-span-2"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-11"
+                          onClick={() => adjustQuickWeight(exercise.id, lastWeight, weightStep)}
+                        >
+                          +
+                        </Button>
+                        <Input
+                          type="number"
+                          placeholder={`Reps (${targetReps})`}
+                          value={inputs.reps}
+                          onChange={(e) =>
+                            setLogInputs((prev) => ({
+                              ...prev,
+                              [exercise.id]: { ...inputs, reps: e.target.value },
+                            }))
+                          }
+                          className="h-11 text-sm"
+                        />
+                        <Button
+                          type="button"
+                          className="h-11 text-sm"
+                          onClick={() => handleQuickLog(exercise.id, targetReps, lastWeight)}
+                        >
+                          Log
+                        </Button>
+                      </div>
+
+                      <div className="space-y-2">
+                        <p className="text-[10px] text-muted-foreground">Swipe a set to mark complete.</p>
+                        {exercise.sets.map((set, idx) => {
+                          const swipeKey = `${exercise.id}-${set.id}`;
+                          return (
+                            <div
+                              key={set.id}
+                              className={cn(
+                                "grid grid-cols-4 items-center gap-2 rounded-lg border border-border/60 px-2 py-2 text-xs transition-colors touch-pan-y",
+                                set.completed ? "bg-primary/10" : "bg-muted/30",
+                              )}
+                              onPointerDown={(event) =>
+                                handleSwipeStart(swipeKey, event.clientX)
+                              }
+                              onPointerMove={(event) =>
+                                handleSwipeMove(
+                                  swipeKey,
+                                  event.clientX,
+                                  set.completed,
+                                  exercise.id,
+                                  set.id,
+                                )
+                              }
+                              onPointerUp={() => handleSwipeEnd(swipeKey)}
+                              onPointerCancel={() => handleSwipeEnd(swipeKey)}
+                            >
+                              <div className="font-semibold text-muted-foreground">Set {idx + 1}</div>
+                              <Input
+                                type="number"
+                                placeholder="0"
+                                className="h-9 text-center text-sm"
+                                value={set.weight ?? ""}
+                                onChange={(e) =>
+                                  handleSetUpdate(
+                                    exercise.id,
+                                    set.id,
+                                    "weight",
+                                    e.target.value === "" ? null : parseFloat(e.target.value),
+                                  )
+                                }
+                              />
+                              <Input
+                                type="number"
+                                placeholder={set.targetReps}
+                                className="h-9 text-center text-sm"
+                                value={set.actualReps ?? ""}
+                                onChange={(e) =>
+                                  handleSetUpdate(
+                                    exercise.id,
+                                    set.id,
+                                    "actualReps",
+                                    e.target.value === "" ? null : parseFloat(e.target.value),
+                                  )
+                                }
+                              />
+                              <Checkbox
+                                checked={set.completed}
+                                onCheckedChange={(checked) => {
+                                  handleSetUpdate(exercise.id, set.id, "completed", !!checked);
+                                  if (checked && navigator.vibrate) {
+                                    navigator.vibrate(10);
+                                  }
+                                }}
+                                className="h-5 w-5 justify-self-end"
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
-        
-        {/* Lift Section */}
-        {!isMockDay && resolvedDay.type === 'lift' && (
-          <div className="space-y-4">
-             {/* Exercise Navigation */}
-            <div className="overflow-x-auto pb-2 no-scrollbar">
-              <div className="flex gap-2">
-                {resolvedDay.exercises.map((ex, idx) => (
-                  <button
-                    key={ex.id}
-                    onClick={() => setActiveTab(ex.id)}
-                    className={cn(
-                      "px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-colors border",
-                      activeTab === ex.id 
-                        ? "bg-primary text-primary-foreground border-primary" 
-                        : "bg-card text-muted-foreground border-border hover:bg-accent"
-                    )}
-                  >
-                    {idx + 1}. {ex.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Active Exercise Card */}
-            {resolvedDay.exercises.map((ex) => (
-              <div key={ex.id} className={cn(activeTab === ex.id ? "block" : "hidden")}>
-                <Card className="border-0 shadow-lg bg-card">
-                  <CardContent className="p-6">
-                    <div className="flex justify-between items-start mb-6">
-                      <div>
-                        <h3 className="text-2xl font-black uppercase leading-none">{ex.name}</h3>
-                        <p className="mt-2 text-xs text-muted-foreground">
-                          {exerciseHintMap[ex.name] || "Focus on form. Controlled tempo."}
-                        </p>
-                      </div>
-                      {/* Placeholder for video/info */}
-                    </div>
-
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-8 sm:grid-cols-10 gap-2 text-[10px] sm:text-xs font-mono text-muted-foreground mb-2 text-center">
-                        <div className="col-span-1">#</div>
-                        <div className="col-span-2 sm:col-span-3">WEIGHT ({profile.units === 'imperial' ? 'lbs' : 'kg'})</div>
-                        <div className="col-span-2 sm:col-span-3">REPS ({ex.sets[0].targetReps})</div>
-                        <div className="col-span-1">✓</div>
-                        <div className="col-span-2">★ Form</div>
-                      </div>
-
-                      {ex.sets.map((set, idx) => (
-                        <div key={set.id} className={cn(
-                          "grid grid-cols-8 sm:grid-cols-10 gap-2 items-center p-2 rounded-lg transition-colors",
-                          set.completed ? "bg-primary/10" : "bg-muted/30"
-                        )}>
-                          <div className="col-span-1 text-center font-bold text-sm text-muted-foreground">{idx + 1}</div>
-                          
-                          <div className="col-span-2 sm:col-span-3">
-                            <Input 
-                              type="number" 
-                              placeholder="0" 
-                              className="text-center h-9 sm:h-10 font-mono text-base sm:text-lg bg-background"
-                              value={set.weight ?? ''}
-                              onChange={(e) => handleSetUpdate(
-                                ex.id,
-                                set.id,
-                                'weight',
-                                e.target.value === "" ? null : parseFloat(e.target.value)
-                              )}
-                            />
-                          </div>
-                          
-                          <div className="col-span-2 sm:col-span-3">
-                            <Input 
-                              type="number" 
-                              placeholder={set.targetReps}
-                              className="text-center h-9 sm:h-10 font-mono text-base sm:text-lg bg-background"
-                              value={set.actualReps ?? ''}
-                              onChange={(e) => handleSetUpdate(
-                                ex.id,
-                                set.id,
-                                'actualReps',
-                                e.target.value === "" ? null : parseFloat(e.target.value)
-                              )}
-                            />
-                          </div>
-
-                          <div className="col-span-1 flex justify-center">
-                            <Checkbox 
-                              checked={set.completed}
-                              onCheckedChange={(checked) => handleSetUpdate(ex.id, set.id, 'completed', !!checked)}
-                              className="h-6 w-6"
-                            />
-                          </div>
-
-                          <div className="col-span-2 flex justify-center">
-                            <Checkbox 
-                                checked={set.perfectForm}
-                                onCheckedChange={(checked) => handleSetUpdate(ex.id, set.id, 'perfectForm', !!checked)}
-                                className="h-6 w-6 border-yellow-500 data-[state=checked]:bg-yellow-500 data-[state=checked]:text-black"
-                              />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            ))}
-          </div>
-        )}
 
         {/* Run / Cardio Section */}
         {(isRunDay || resolvedDay.runTarget) && (
@@ -561,7 +578,14 @@ export default function Session() {
                       type="number" 
                       placeholder={resolvedDay.runTarget?.distance.toString() || profile.dailyRunTarget.toString()}
                       value={runDistance}
-                      onChange={(e) => setRunDistance(e.target.value)}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setRunDistance(value);
+                        const parsed = value.trim() === "" ? null : parseFloat(value);
+                        updateRunDraft(resolvedDay.id, {
+                          distance: parsed === null || Number.isNaN(parsed) ? null : parsed,
+                        });
+                      }}
                       className="text-lg font-mono"
                     />
                   </div>
@@ -571,7 +595,15 @@ export default function Session() {
                       type="number" 
                       placeholder="30"
                       value={runTime}
-                      onChange={(e) => setRunTime(e.target.value)}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setRunTime(value);
+                        const parsed = value.trim() === "" ? null : parseFloat(value);
+                        updateRunDraft(resolvedDay.id, {
+                          timeSeconds:
+                            parsed === null || Number.isNaN(parsed) ? null : parsed * 60,
+                        });
+                      }}
                       className="text-lg font-mono"
                     />
                   </div>
@@ -600,7 +632,10 @@ export default function Session() {
           <Textarea 
             placeholder="How did it feel? Any pain? RPE?"
             value={notes}
-            onChange={(e) => setNotes(e.target.value)}
+            onChange={(e) => {
+              setNotes(e.target.value);
+              updateWorkoutNotes(resolvedDay.id, e.target.value);
+            }}
             className="min-h-[100px]"
           />
         </div>

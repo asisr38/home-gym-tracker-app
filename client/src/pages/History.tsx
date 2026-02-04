@@ -1,98 +1,225 @@
+import { useMemo } from "react";
 import { useStore } from "@/lib/store";
 import { MobileShell } from "@/components/layout/MobileShell";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { TrendingUp, Activity, Calendar, Flame } from "lucide-react";
 import { format } from "date-fns";
-import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { cn } from "@/lib/utils";
+
+const MS_IN_DAY = 24 * 60 * 60 * 1000;
 
 export default function History() {
   const { history, profile } = useStore();
 
-  // Prepare chart data (Last 7 sessions volume)
-  // Simplification: Sum of reps for lifting, or just 1 for completion
-  const chartData = history.slice(-7).map((day, i) => ({
-    name: `D${day.dayNumber}`,
-    // Simple metric: Number of sets completed
-    volume: day.exercises.reduce((acc, ex) => acc + ex.sets.filter(s => s.completed).length, 0),
-    type: day.type
-  }));
+  const stats = useMemo(() => {
+    const now = Date.now();
+    const currentWeekStart = now - 7 * MS_IN_DAY;
+    const previousWeekStart = now - 14 * MS_IN_DAY;
+
+    const exerciseSessions = new Map<string, { date: number; weight: number | null }[]>();
+    let currentWeekVolume = 0;
+    let previousWeekVolume = 0;
+    let cardioTotalSeconds = 0;
+    let cardioSessions = 0;
+
+    const dayKeys = new Set<string>();
+    const currentMonthKeys = new Set<string>();
+    const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
+
+    history.forEach((day) => {
+      if (day.dateCompleted) {
+        const date = new Date(day.dateCompleted);
+        const dayKey = date.toISOString().slice(0, 10);
+        dayKeys.add(dayKey);
+        if (date.getMonth() === currentMonth && date.getFullYear() === currentYear) {
+          currentMonthKeys.add(dayKey);
+        }
+      }
+
+      if (day.runActual?.timeSeconds) {
+        cardioTotalSeconds += day.runActual.timeSeconds;
+        cardioSessions += 1;
+      }
+
+      const dayTimestamp = day.dateCompleted ? Date.parse(day.dateCompleted) : 0;
+      const isCurrentWeek = dayTimestamp >= currentWeekStart;
+      const isPreviousWeek = dayTimestamp >= previousWeekStart && dayTimestamp < currentWeekStart;
+
+      day.exercises.forEach((exercise) => {
+        const completedSets = exercise.sets.filter((set) => set.completed);
+        const volume = completedSets.reduce((total, set) => {
+          const weight = set.weight ?? 0;
+          const reps = (set.actualReps ?? parseFloat(set.targetReps)) || 0;
+          return total + weight * reps;
+        }, 0);
+
+        if (isCurrentWeek) currentWeekVolume += volume;
+        if (isPreviousWeek) previousWeekVolume += volume;
+
+        const bestSet = completedSets.reduce((best, current) => {
+          if (!best) return current;
+          const bestWeight = best.weight ?? 0;
+          const currentWeight = current.weight ?? 0;
+          return currentWeight > bestWeight ? current : best;
+        }, undefined as typeof completedSets[number] | undefined);
+
+        const weight = bestSet?.weight ?? null;
+        const entry = { date: dayTimestamp, weight };
+        const list = exerciseSessions.get(exercise.name) || [];
+        list.push(entry);
+        exerciseSessions.set(exercise.name, list);
+      });
+    });
+
+    const strength = [...exerciseSessions.entries()].map(([name, sessions]) => {
+      const sorted = sessions.sort((a, b) => b.date - a.date);
+      const bestWeight = sorted.reduce((max, entry) => {
+        if (entry.weight === null) return max;
+        return Math.max(max, entry.weight ?? 0);
+      }, 0);
+      const latest = sorted[0]?.weight ?? null;
+      const previous = sorted[1]?.weight ?? null;
+      const trend = latest === null || previous === null ? "→" : latest > previous ? "↑" : latest < previous ? "↓" : "→";
+      return { name, bestWeight, latest, trend };
+    });
+
+    strength.sort((a, b) => b.bestWeight - a.bestWeight);
+
+    const streak = (() => {
+      const uniqueDays = [...dayKeys].sort((a, b) => (a > b ? -1 : 1));
+      let count = 0;
+      let cursor = new Date().toISOString().slice(0, 10);
+      for (const day of uniqueDays) {
+        if (day === cursor) {
+          count += 1;
+          const prevDate = new Date(Date.parse(day) - MS_IN_DAY);
+          cursor = prevDate.toISOString().slice(0, 10);
+        } else if (count === 0 && day === cursor) {
+          count += 1;
+        } else if (count > 0) {
+          break;
+        }
+      }
+      return count;
+    })();
+
+    return {
+      strength: strength.slice(0, 4),
+      currentWeekVolume,
+      previousWeekVolume,
+      streak,
+      daysThisMonth: currentMonthKeys.size,
+      cardioTotalMinutes: cardioTotalSeconds ? Math.round(cardioTotalSeconds / 60) : 0,
+      cardioAvgMinutes: cardioSessions ? Math.round(cardioTotalSeconds / 60 / cardioSessions) : 0,
+    };
+  }, [history]);
+
+  const volumePercent = stats.previousWeekVolume
+    ? Math.min(100, (stats.currentWeekVolume / stats.previousWeekVolume) * 100)
+    : stats.currentWeekVolume > 0
+      ? 100
+      : 0;
 
   return (
     <MobileShell>
       <div className="p-6 space-y-6">
         <div>
-          <h1 className="text-2xl font-bold">History & Progress</h1>
-          <p className="text-xs text-muted-foreground">Showing the last 30 days of sessions.</p>
+          <h1 className="text-2xl font-semibold">Progress</h1>
+          <p className="text-xs text-muted-foreground">Clean snapshots of strength, volume, and consistency.</p>
         </div>
 
-        {history.length > 0 ? (
+        {history.length === 0 && (
+          <div className="text-center py-10 text-muted-foreground text-sm">
+            No sessions logged yet. Start a workout to see progress here.
+          </div>
+        )}
+
+        {history.length > 0 && (
           <>
-             {/* Volume Chart */}
-            <Card className="border-border/60 shadow-lg">
+            <Card className="border-border/60 shadow-sm">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Sets Completed (Last 7 Sessions)</CardTitle>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-primary" /> Strength
+                </CardTitle>
+                <CardDescription className="text-xs">Best weight per exercise</CardDescription>
               </CardHeader>
-              <CardContent className="h-[200px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData}>
-                    <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                    <Tooltip 
-                      cursor={{fill: 'transparent'}}
-                      contentStyle={{ backgroundColor: 'hsl(var(--card))', borderRadius: '8px', border: '1px solid hsl(var(--border))' }}
-                    />
-                    <Bar dataKey="volume" radius={[4, 4, 0, 0]}>
-                      {chartData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.type === 'lift' ? 'hsl(var(--primary))' : 'hsl(var(--chart-2))'} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+              <CardContent className="space-y-2">
+                {stats.strength.length === 0 && (
+                  <div className="text-xs text-muted-foreground">Log sets to see strength trends.</div>
+                )}
+                {stats.strength.map((item) => (
+                  <div key={item.name} className="flex items-center justify-between text-sm">
+                    <div>
+                      <div className="font-medium">{item.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        Best {item.bestWeight === 0 ? "0" : item.bestWeight || "--"} {profile.units === "imperial" ? "lbs" : "kg"}
+                      </div>
+                    </div>
+                    <div className="text-lg font-semibold text-muted-foreground">{item.trend}</div>
+                  </div>
+                ))}
               </CardContent>
             </Card>
 
-            {/* Log List */}
-            <div className="space-y-4">
-              <h3 className="font-semibold">Recent Logs</h3>
-              {[...history].reverse().map((day) => (
-                <Card key={day.dateCompleted + day.id} className="overflow-hidden border-border/60 shadow-sm">
-                  <div className="flex">
-                    <div className={cn("w-2", day.type === 'lift' ? "bg-primary" : "bg-green-500")} />
-                    <div className="flex-1 p-4">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h4 className="font-bold">{day.title}</h4>
-                          <p className="text-xs text-muted-foreground">{format(new Date(day.dateCompleted!), "MMM d, yyyy • h:mm a")}</p>
-                        </div>
-                        {day.runActual && (
-                          <div className="text-right">
-                            <div className="font-mono text-sm font-bold">{day.runActual.distance} {profile.units === 'imperial' ? 'mi' : 'km'}</div>
-                            <div className="text-xs text-muted-foreground">{Math.round(day.runActual.timeSeconds / 60)} min</div>
-                          </div>
-                        )}
-                      </div>
-                      
-                      {day.notes && (
-                        <div className="mt-3 text-sm bg-muted/50 p-2 rounded italic text-muted-foreground">
-                          "{day.notes}"
-                        </div>
-                      )}
+            <Card className="border-border/60 shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-primary" /> Volume
+                </CardTitle>
+                <CardDescription className="text-xs">Weekly total volume</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Progress value={volumePercent} className="h-2" />
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>{Math.round(stats.currentWeekVolume)} total volume</span>
+                  <span>Prev week: {Math.round(stats.previousWeekVolume)}</span>
+                </div>
+              </CardContent>
+            </Card>
 
-                      {day.calvesStretched && (
-                         <div className="mt-2 text-xs text-yellow-600 flex items-center gap-1">
-                           <span>✓ Calves Stretched</span>
-                         </div>
-                      )}
-                    </div>
-                  </div>
-                </Card>
-              ))}
+            <Card className="border-border/60 shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Flame className="h-4 w-4 text-primary" /> Consistency
+                </CardTitle>
+                <CardDescription className="text-xs">Streak and monthly cadence</CardDescription>
+              </CardHeader>
+              <CardContent className="flex items-center justify-between text-sm">
+                <div>
+                  <div className="text-xs text-muted-foreground">Workout streak</div>
+                  <div className="text-xl font-semibold">{stats.streak} days</div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Days trained this month</div>
+                  <div className="text-xl font-semibold">{stats.daysThisMonth}</div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border/60 shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-primary" /> Cardio
+                </CardTitle>
+                <CardDescription className="text-xs">Total minutes & average duration</CardDescription>
+              </CardHeader>
+              <CardContent className="flex items-center justify-between text-sm">
+                <div>
+                  <div className="text-xs text-muted-foreground">Total minutes</div>
+                  <div className="text-xl font-semibold">{stats.cardioTotalMinutes}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Avg session</div>
+                  <div className="text-xl font-semibold">{stats.cardioAvgMinutes} min</div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="text-xs text-muted-foreground">
+              Updated {format(new Date(), "MMM d, yyyy")}
             </div>
           </>
-        ) : (
-          <div className="text-center py-12 text-muted-foreground">
-            <p>No sessions logged yet.</p>
-            <p className="text-sm">Start a session from the Home screen.</p>
-          </div>
         )}
       </div>
     </MobileShell>

@@ -10,6 +10,7 @@ import {
   type UserProfile,
   type WorkoutDay,
   type ExerciseSet,
+  type DayType,
   type GoalType,
   type Equipment,
 } from "@shared/userData";
@@ -18,6 +19,7 @@ export type {
   UnitSystem,
   DayType,
   ExerciseSet,
+  ExerciseAlternative,
   Exercise,
   WorkoutDay,
   UserProfile,
@@ -29,6 +31,7 @@ export type LoggedSet = {
   id: string;
   dayId: string;
   exerciseId: string;
+  exerciseName: string;
   weight: number | null;
   reps: number | null;
   timestamp: number;
@@ -46,6 +49,11 @@ interface AppState {
   logSet: (dayId: string, exerciseId: string, setId: string, data: Partial<ExerciseSet>) => void;
   logWorkoutSet: (dayId: string, exerciseId: string, data: { weight: number | null; reps: number | null }) => void;
   completeWorkout: (dayId: string, notes?: string, runData?: any, calvesStretched?: boolean) => void;
+  undoCompleteWorkout: (dayId: string, dateCompleted?: string) => void;
+  updateWorkoutNotes: (dayId: string, notes: string) => void;
+  updateRunDraft: (dayId: string, runData: { distance?: number | null; timeSeconds?: number | null }) => void;
+  updateExerciseNotes: (dayId: string, exerciseId: string, notes: string) => void;
+  swapExercise: (dayId: string, exerciseId: string, next: { id: string; name: string; muscleGroup?: string; reason?: string }) => void;
 
   // Plan Customization Actions
   addExerciseToDay: (dayId: string, exercise: Exercise) => void;
@@ -53,6 +61,7 @@ interface AppState {
   updateExerciseTargets: (dayId: string, exerciseId: string, targets: Partial<ExerciseSet>) => void;
 
   resetPlan: () => void; // Regenerate the week
+  restorePlan: (plan: WorkoutDay[]) => void;
   importData: (jsonData: string) => boolean;
   exportData: () => string;
   applyUserData: (data: UserData) => void;
@@ -106,6 +115,17 @@ const inferGoalType = (goal: string): GoalType => {
   return "balanced";
 };
 
+const inferDayType = (title: string, type: DayType): "push" | "pull" | "legs" | "cardio" | "full" => {
+  const normalized = title.toLowerCase();
+  if (normalized.includes("push")) return "push";
+  if (normalized.includes("pull")) return "pull";
+  if (normalized.includes("leg")) return "legs";
+  if (type !== "lift") return "cardio";
+  if (normalized.includes("full")) return "full";
+  if (normalized.includes("shoulder")) return "full";
+  return "full";
+};
+
 const getSetScheme = (goalType: GoalType, tier: "compound" | "accessory" | "core") => {
   const table: Record<
     GoalType,
@@ -157,6 +177,7 @@ type ExerciseOption = {
 
 type ExerciseSlot = {
   tier: "compound" | "accessory" | "core";
+  muscleGroup: string;
   options: ExerciseOption[];
 };
 
@@ -165,9 +186,43 @@ const pickExercise = (slot: ExerciseSlot, equipment: Equipment[]) =>
     option.requires.every((item) => equipment.includes(item)),
   ) || slot.options[slot.options.length - 1];
 
+const slugify = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+
+const toExerciseId = (name: string) => `ex-${slugify(name)}`;
+
+const equipmentReasonMap: Record<Equipment, string> = {
+  bodyweight: "No equipment",
+  dumbbell: "No dumbbells",
+  barbell: "No barbell",
+  bench: "No bench",
+  rack: "No rack",
+  bands: "No bands",
+  kettlebell: "No kettlebell",
+};
+
+const buildAlternativeReason = (primary: ExerciseOption, alternative: ExerciseOption) => {
+  const missing = primary.requires.find((req) => !alternative.requires.includes(req));
+  return missing ? equipmentReasonMap[missing] : "Busy gym";
+};
+
+const buildAlternatives = (slot: ExerciseSlot, primary: ExerciseOption) =>
+  slot.options
+    .filter((option) => option.name !== primary.name)
+    .map((option) => ({
+      id: toExerciseId(option.name),
+      name: option.name,
+      reason: buildAlternativeReason(primary, option),
+      muscleGroup: slot.muscleGroup,
+    }));
+
 const buildDay = (
   dayNumber: number,
   title: string,
+  dayType: "push" | "pull" | "legs" | "cardio" | "full",
   slots: ExerciseSlot[],
   goalType: GoalType,
   equipment: Equipment[],
@@ -176,13 +231,17 @@ const buildDay = (
   dayNumber,
   title,
   type: "lift",
+  dayType,
   completed: false,
   exercises: slots.map((slot, index) => {
     const option = pickExercise(slot, equipment);
     const scheme = getSetScheme(goalType, slot.tier);
+    const alternatives = buildAlternatives(slot, option);
     return {
       id: `d${dayNumber}-e${index + 1}`,
       name: option.name,
+      muscleGroup: slot.muscleGroup,
+      alternatives: alternatives.length ? alternatives : undefined,
       sets: buildSets(scheme.sets, scheme.reps),
     };
   }),
@@ -204,9 +263,11 @@ const buildPlan = (profile: UserProfile): WorkoutDay[] => {
     buildDay(
       1,
       "Push Day",
+      "push",
       [
         {
           tier: "compound",
+          muscleGroup: "Chest",
           options: [
             { name: "Barbell Bench Press", requires: ["barbell", "bench"] },
             { name: "DB Flat Bench Press", requires: ["dumbbell", "bench"] },
@@ -216,6 +277,7 @@ const buildPlan = (profile: UserProfile): WorkoutDay[] => {
         },
         {
           tier: "accessory",
+          muscleGroup: "Chest",
           options: [
             { name: "Incline DB Press", requires: ["dumbbell", "bench"] },
             { name: "Feet-Elevated Pushups", requires: ["bodyweight", "bench"] },
@@ -225,6 +287,7 @@ const buildPlan = (profile: UserProfile): WorkoutDay[] => {
         },
         {
           tier: "compound",
+          muscleGroup: "Shoulders",
           options: [
             { name: "Barbell Overhead Press", requires: ["barbell"] },
             { name: "DB Overhead Press", requires: ["dumbbell"] },
@@ -234,6 +297,7 @@ const buildPlan = (profile: UserProfile): WorkoutDay[] => {
         },
         {
           tier: "accessory",
+          muscleGroup: "Triceps",
           options: [
             { name: "EZ Skullcrushers", requires: ["barbell", "bench"] },
             { name: "DB Skullcrushers", requires: ["dumbbell", "bench"] },
@@ -244,6 +308,7 @@ const buildPlan = (profile: UserProfile): WorkoutDay[] => {
         },
         {
           tier: "accessory",
+          muscleGroup: "Chest",
           options: [
             { name: "DB Chest Fly", requires: ["dumbbell", "bench"] },
             { name: "Band Pushups", requires: ["bands"] },
@@ -258,9 +323,11 @@ const buildPlan = (profile: UserProfile): WorkoutDay[] => {
     buildDay(
       2,
       "Leg Day",
+      "legs",
       [
         {
           tier: "compound",
+          muscleGroup: "Hamstrings",
           options: [
             { name: "Barbell RDL", requires: ["barbell"] },
             { name: "DB RDL", requires: ["dumbbell"] },
@@ -271,6 +338,7 @@ const buildPlan = (profile: UserProfile): WorkoutDay[] => {
         },
         {
           tier: "compound",
+          muscleGroup: "Quads",
           options: [
             { name: "Front Squat", requires: ["barbell"] },
             { name: "Goblet Squats", requires: ["dumbbell"] },
@@ -281,6 +349,7 @@ const buildPlan = (profile: UserProfile): WorkoutDay[] => {
         },
         {
           tier: "accessory",
+          muscleGroup: "Glutes",
           options: [
             { name: "DB Walking Lunges", requires: ["dumbbell"] },
             { name: "Walking Lunges", requires: ["bodyweight"] },
@@ -289,6 +358,7 @@ const buildPlan = (profile: UserProfile): WorkoutDay[] => {
         },
         {
           tier: "accessory",
+          muscleGroup: "Calves",
           options: [
             { name: "Weighted Calf Raises", requires: ["dumbbell"] },
             { name: "Barbell Calf Raises", requires: ["barbell"] },
@@ -297,6 +367,7 @@ const buildPlan = (profile: UserProfile): WorkoutDay[] => {
         },
         {
           tier: "accessory",
+          muscleGroup: "Glutes",
           options: [
             { name: "Hip Thrust", requires: ["barbell", "bench"] },
             { name: "Band Glute Bridge", requires: ["bands"] },
@@ -310,9 +381,11 @@ const buildPlan = (profile: UserProfile): WorkoutDay[] => {
     buildDay(
       3,
       "Pull Day",
+      "pull",
       [
         {
           tier: "compound",
+          muscleGroup: "Back",
           options: [
             { name: "Barbell Bent-Over Row", requires: ["barbell"] },
             { name: "Single-Arm DB Row", requires: ["dumbbell", "bench"] },
@@ -323,6 +396,7 @@ const buildPlan = (profile: UserProfile): WorkoutDay[] => {
         },
         {
           tier: "compound",
+          muscleGroup: "Back",
           options: [
             { name: "Pullups", requires: ["rack", "bodyweight"] },
             { name: "Band Lat Pulldown", requires: ["bands"] },
@@ -332,6 +406,7 @@ const buildPlan = (profile: UserProfile): WorkoutDay[] => {
         },
         {
           tier: "accessory",
+          muscleGroup: "Biceps",
           options: [
             { name: "EZ Bar Curls", requires: ["barbell"] },
             { name: "DB Curls", requires: ["dumbbell"] },
@@ -341,6 +416,7 @@ const buildPlan = (profile: UserProfile): WorkoutDay[] => {
         },
         {
           tier: "accessory",
+          muscleGroup: "Rear Delts",
           options: [
             { name: "DB Rear Delt Fly", requires: ["dumbbell"] },
             { name: "Band Face Pull", requires: ["bands"] },
@@ -349,6 +425,7 @@ const buildPlan = (profile: UserProfile): WorkoutDay[] => {
         },
         {
           tier: "core",
+          muscleGroup: "Core",
           options: [
             { name: "Farmer Carry", requires: ["dumbbell"] },
             { name: "Suitcase Carry", requires: ["kettlebell"] },
@@ -362,9 +439,11 @@ const buildPlan = (profile: UserProfile): WorkoutDay[] => {
     buildDay(
       4,
       "Shoulders & Abs",
+      "full",
       [
         {
           tier: "compound",
+          muscleGroup: "Shoulders",
           options: [
             { name: "Barbell Overhead Press", requires: ["barbell"] },
             { name: "DB Overhead Press", requires: ["dumbbell"] },
@@ -374,6 +453,7 @@ const buildPlan = (profile: UserProfile): WorkoutDay[] => {
         },
         {
           tier: "accessory",
+          muscleGroup: "Shoulders",
           options: [
             { name: "DB Lateral Raises", requires: ["dumbbell"] },
             { name: "Band Lateral Raises", requires: ["bands"] },
@@ -382,6 +462,7 @@ const buildPlan = (profile: UserProfile): WorkoutDay[] => {
         },
         {
           tier: "accessory",
+          muscleGroup: "Shoulders",
           options: [
             { name: "EZ Upright Rows", requires: ["barbell"] },
             { name: "DB Upright Rows", requires: ["dumbbell"] },
@@ -391,6 +472,7 @@ const buildPlan = (profile: UserProfile): WorkoutDay[] => {
         },
         {
           tier: "core",
+          muscleGroup: "Core",
           options: [
             { name: "Russian Twists", requires: ["bodyweight"] },
             { name: "DB Russian Twists", requires: ["dumbbell"] },
@@ -399,6 +481,7 @@ const buildPlan = (profile: UserProfile): WorkoutDay[] => {
         },
         {
           tier: "core",
+          muscleGroup: "Core",
           options: [
             { name: "Lying Leg Raises", requires: ["bodyweight"] },
             { name: "Dead Bug", requires: ["bodyweight"] },
@@ -411,9 +494,11 @@ const buildPlan = (profile: UserProfile): WorkoutDay[] => {
     buildDay(
       5,
       "Full Body Metabolic",
+      "full",
       [
         {
           tier: "compound",
+          muscleGroup: "Full Body",
           options: [
             { name: "Barbell Thrusters", requires: ["barbell"] },
             { name: "DB Thrusters", requires: ["dumbbell"] },
@@ -423,6 +508,7 @@ const buildPlan = (profile: UserProfile): WorkoutDay[] => {
         },
         {
           tier: "accessory",
+          muscleGroup: "Core",
           options: [
             { name: "Barbell Floor Wipers", requires: ["barbell"] },
             { name: "Band Dead Bug", requires: ["bands"] },
@@ -431,6 +517,7 @@ const buildPlan = (profile: UserProfile): WorkoutDay[] => {
         },
         {
           tier: "accessory",
+          muscleGroup: "Back",
           options: [
             { name: "Renegade Rows", requires: ["dumbbell"] },
             { name: "Band Rows", requires: ["bands"] },
@@ -439,6 +526,7 @@ const buildPlan = (profile: UserProfile): WorkoutDay[] => {
         },
         {
           tier: "accessory",
+          muscleGroup: "Chest",
           options: [
             { name: "Decline Pushups", requires: ["bodyweight", "bench"] },
             { name: "Band Pushups", requires: ["bands"] },
@@ -447,6 +535,7 @@ const buildPlan = (profile: UserProfile): WorkoutDay[] => {
         },
         {
           tier: "core",
+          muscleGroup: "Core",
           options: [
             { name: "Plank", requires: ["bodyweight"] },
             { name: "Side Plank", requires: ["bodyweight"] },
@@ -461,6 +550,7 @@ const buildPlan = (profile: UserProfile): WorkoutDay[] => {
       dayNumber: 6,
       title: "Active Recovery Run",
       type: "run",
+      dayType: "cardio",
       completed: false,
       exercises: [],
       runTarget: {
@@ -473,6 +563,7 @@ const buildPlan = (profile: UserProfile): WorkoutDay[] => {
       dayNumber: 7,
       title: "Long Run / Rest",
       type: "recovery",
+      dayType: "cardio",
       completed: false,
       exercises: [],
       runTarget: {
@@ -501,6 +592,11 @@ const normalizeProfile = (profile: UserProfile): UserProfile => ({
   ...profile,
   goalType: profile.goalType || inferGoalType(profile.goal),
   equipment: ensureEquipment(profile.equipment),
+});
+
+const normalizeDayData = (day: WorkoutDay): WorkoutDay => ({
+  ...day,
+  dayType: day.dayType ?? inferDayType(day.title, day.type),
 });
 
 export const useStore = create<AppState>()(
@@ -556,10 +652,13 @@ export const useStore = create<AppState>()(
       logWorkoutSet: (dayId, exerciseId, data) =>
         set((state) => {
           const timestamp = Date.now();
+          const day = state.currentPlan.find((entry) => entry.id === dayId);
+          const exercise = day?.exercises.find((entry) => entry.id === exerciseId);
           const newLog: LoggedSet = {
             id: `${dayId}-${exerciseId}-${timestamp}`,
             dayId,
             exerciseId,
+            exerciseName: exercise?.name ?? "Exercise",
             weight: data.weight ?? null,
             reps: data.reps ?? null,
             timestamp,
@@ -613,9 +712,9 @@ export const useStore = create<AppState>()(
           ...day,
           completed: true,
           dateCompleted,
-          notes,
-          runActual: runData,
-          calvesStretched
+          notes: notes ?? day.notes,
+          runActual: runData ?? day.runActual,
+          calvesStretched: calvesStretched ?? day.calvesStretched
         };
 
         const existingIndex = state.history.findIndex(
@@ -635,6 +734,104 @@ export const useStore = create<AppState>()(
           currentPlan: state.currentPlan.map(d => d.id === dayId ? completedDay : d),
         };
       }),
+
+      undoCompleteWorkout: (dayId, dateCompleted) => set((state) => {
+        const nextHistory = dateCompleted
+          ? state.history.filter((entry) => !(entry.id === dayId && entry.dateCompleted === dateCompleted))
+          : state.history.filter((entry, index) => {
+              if (entry.id !== dayId) return true;
+              const isLastMatch =
+                index ===
+                state.history
+                  .map((item, idx) => ({ item, idx }))
+                  .filter((record) => record.item.id === dayId)
+                  .slice(-1)[0]?.idx;
+              return !isLastMatch;
+            });
+
+        return {
+          history: nextHistory,
+          currentPlan: state.currentPlan.map((day) =>
+            day.id === dayId
+              ? { ...day, completed: false, dateCompleted: undefined }
+              : day
+          ),
+        };
+      }),
+
+      updateWorkoutNotes: (dayId, notes) =>
+        set((state) => ({
+          currentPlan: state.currentPlan.map((day) =>
+            day.id === dayId ? { ...day, notes } : day,
+          ),
+        })),
+
+      updateRunDraft: (dayId, runData) =>
+        set((state) => ({
+          currentPlan: state.currentPlan.map((day) => {
+            if (day.id !== dayId) return day;
+            const nextDistance =
+              runData.distance !== undefined ? runData.distance ?? 0 : day.runActual?.distance;
+            const nextTime =
+              runData.timeSeconds !== undefined ? runData.timeSeconds ?? 0 : day.runActual?.timeSeconds;
+            const hasData =
+              (nextDistance ?? 0) > 0 || (nextTime ?? 0) > 0;
+            return {
+              ...day,
+              runActual: hasData ? { distance: nextDistance ?? 0, timeSeconds: nextTime ?? 0 } : undefined,
+            };
+          }),
+        })),
+
+      updateExerciseNotes: (dayId, exerciseId, notes) =>
+        set((state) => ({
+          currentPlan: state.currentPlan.map((day) => {
+            if (day.id !== dayId) return day;
+            return {
+              ...day,
+              exercises: day.exercises.map((exercise) =>
+                exercise.id === exerciseId ? { ...exercise, notes } : exercise,
+              ),
+            };
+          }),
+        })),
+
+      swapExercise: (dayId, exerciseId, next) =>
+        set((state) => ({
+          currentPlan: state.currentPlan.map((day) => {
+            if (day.id !== dayId) return day;
+            return {
+              ...day,
+              exercises: day.exercises.map((exercise) => {
+                if (exercise.id !== exerciseId) return exercise;
+                const primary = exercise.primary ?? {
+                  id: exercise.id,
+                  name: exercise.name,
+                  muscleGroup: exercise.muscleGroup,
+                };
+                const isBackToPrimary =
+                  exercise.primary &&
+                  (next.id === exercise.primary.id || next.name === exercise.primary.name);
+                if (isBackToPrimary) {
+                  return {
+                    ...exercise,
+                    name: primary.name,
+                    muscleGroup: primary.muscleGroup,
+                    primary: undefined,
+                    swapReason: undefined,
+                  };
+                }
+                return {
+                  ...exercise,
+                  name: next.name,
+                  muscleGroup: next.muscleGroup ?? exercise.muscleGroup,
+                  primary,
+                  swapReason: next.reason,
+                };
+              }),
+            };
+          }),
+        })),
 
       addExerciseToDay: (dayId, exercise) => set((state) => ({
         currentPlan: state.currentPlan.map((day) => {
@@ -681,16 +878,21 @@ export const useStore = create<AppState>()(
         set({ currentPlan: buildPlan(normalizedProfile) });
       },
 
+      restorePlan: (plan) => set({ currentPlan: plan }),
+
       exportData: () => JSON.stringify(get().getUserData()),
 
       importData: (json) => {
         try {
           const data = userDataSchema.parse(JSON.parse(json));
           const normalizedProfile = normalizeProfile(data.profile);
+          const normalizedHistory = pruneHistory((data.history || []).map(normalizeDayData));
+          const normalizedPlan =
+            data.currentPlan?.length ? data.currentPlan.map(normalizeDayData) : buildPlan(normalizedProfile);
           set({
             profile: normalizedProfile,
-            history: pruneHistory(data.history),
-            currentPlan: data.currentPlan?.length ? data.currentPlan : buildPlan(normalizedProfile),
+            history: normalizedHistory,
+            currentPlan: normalizedPlan,
           });
           return true;
         } catch (e) {
@@ -703,12 +905,15 @@ export const useStore = create<AppState>()(
           const normalizedProfile = normalizeProfile(data.profile);
           return {
             profile: normalizedProfile,
-            history: pruneHistory(data.history),
-            currentPlan: data.currentPlan?.length ? data.currentPlan : buildPlan(normalizedProfile),
+            history: pruneHistory((data.history || []).map(normalizeDayData)),
+            currentPlan: data.currentPlan?.length
+              ? data.currentPlan.map(normalizeDayData)
+              : buildPlan(normalizedProfile),
           };
         }),
 
       getUserData: () => ({
+        schemaVersion: 1,
         profile: get().profile,
         history: pruneHistory(get().history),
         currentPlan: get().currentPlan,
@@ -726,7 +931,7 @@ export const useStore = create<AppState>()(
     {
       name: 'iron-stride-storage',
       storage: createJSONStorage(() => userStorage),
-      version: 2,
+      version: 3,
       migrate: (persistedState) => {
         const wrapped = persistedState as { state?: AppState } | AppState;
         const state = ("state" in wrapped ? wrapped.state : wrapped) || {};
@@ -734,12 +939,22 @@ export const useStore = create<AppState>()(
           ...DEFAULT_PROFILE,
           ...(state.profile || {}),
         });
+        const normalizeDay = (day: WorkoutDay) => ({
+          ...day,
+          dayType: day.dayType ?? inferDayType(day.title, day.type),
+        });
+        const normalizedPlan = (state.currentPlan || []).map(normalizeDay);
+        const normalizedHistory = (state.history || []).map(normalizeDay);
+        const normalizedLogs = (state.setLogs || []).map((log) => ({
+          ...log,
+          exerciseName: log.exerciseName || "Exercise",
+        }));
         return {
           ...state,
           profile: normalizedProfile,
-          history: pruneHistory(state.history || []),
-          currentPlan: state.currentPlan?.length ? state.currentPlan : buildPlan(normalizedProfile),
-          setLogs: state.setLogs || [],
+          history: pruneHistory(normalizedHistory),
+          currentPlan: normalizedPlan.length ? normalizedPlan : buildPlan(normalizedProfile),
+          setLogs: normalizedLogs,
         } as AppState;
       },
     }

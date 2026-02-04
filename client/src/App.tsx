@@ -15,6 +15,7 @@ import Profile from "@/pages/Profile";
 import Plan from "@/pages/Plan"; // Need to create
 import History from "@/pages/History"; // Need to create
 import WeeklyBreakdown from "@/pages/WeeklyBreakdown";
+import ExerciseDetail from "@/pages/ExerciseDetail";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import ForgotPassword from "@/pages/ForgotPassword";
@@ -56,6 +57,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/session/:id" component={Session} />
+      <Route path="/exercise/:dayId/:exerciseId" component={ExerciseDetail} />
       <Route path="/profile" component={Profile} />
       <Route path="/plan" component={Plan} />
       <Route path="/history" component={History} />

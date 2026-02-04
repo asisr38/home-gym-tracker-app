@@ -7,9 +7,11 @@ import { RotateCcw, Download, Upload } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
+import { Switch } from "@/components/ui/switch";
+import { ToastAction } from "@/components/ui/toast";
 
 export default function Profile() {
-  const { profile, exportData, importData, resetPlan } = useStore();
+  const { profile, exportData, importData, resetPlan, restorePlan } = useStore();
   const { user, signOutUser } = useAuth();
   const { toast } = useToast();
   const goalLabelMap: Record<string, string> = {
@@ -47,20 +49,27 @@ export default function Profile() {
   };
 
   const handleReset = () => {
-    if (confirm("Are you sure? This will reset your current week's progress.")) {
-      resetPlan();
-      toast({ title: "Week Reset", description: "The plan has been reset to Day 1." });
-    }
+    const previousPlan = useStore.getState().currentPlan;
+    resetPlan();
+    toast({
+      title: "Week reset",
+      description: "Your plan was reset to Day 1.",
+      action: (
+        <ToastAction altText="Undo reset" onClick={() => restorePlan(previousPlan)}>
+          Undo
+        </ToastAction>
+      ),
+    });
   };
 
   return (
     <MobileShell>
       <div className="p-6 space-y-6">
-        <h1 className="text-2xl font-bold">Profile & Settings</h1>
+        <h1 className="text-2xl font-semibold">Settings</h1>
 
         <Card>
           <CardHeader>
-            <CardTitle>Stats</CardTitle>
+            <CardTitle>Profile</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -107,9 +116,16 @@ export default function Profile() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Data Management</CardTitle>
+            <CardTitle>Account & Data</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="flex items-center justify-between rounded-lg border border-border/60 p-3">
+              <div>
+                <p className="text-sm font-medium">Cloud Sync</p>
+                <p className="text-xs text-muted-foreground">Supabase ready (coming soon)</p>
+              </div>
+              <Switch disabled />
+            </div>
             <Button variant="outline" className="w-full justify-start" onClick={signOutUser}>
               Sign out
             </Button>

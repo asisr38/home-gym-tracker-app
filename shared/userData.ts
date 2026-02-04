@@ -28,10 +28,27 @@ export const exerciseSetSchema = z.object({
   perfectForm: z.boolean(),
 });
 
+export const exerciseAlternativeSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  reason: z.string().optional(),
+  muscleGroup: z.string().optional(),
+});
+
 export const exerciseSchema = z.object({
   id: z.string(),
   name: z.string(),
+  muscleGroup: z.string().optional(),
   sets: z.array(exerciseSetSchema),
+  alternatives: z.array(exerciseAlternativeSchema).optional(),
+  primary: z
+    .object({
+      id: z.string(),
+      name: z.string(),
+      muscleGroup: z.string().optional(),
+    })
+    .optional(),
+  swapReason: z.string().optional(),
   notes: z.string().optional(),
   restTimerSeconds: z.number().optional(),
   videoUrl: z.string().optional(),
@@ -42,6 +59,7 @@ export const workoutDaySchema = z.object({
   dayNumber: z.number(),
   title: z.string(),
   type: dayTypeSchema,
+  dayType: z.enum(["push", "pull", "legs", "cardio", "full"]).optional(),
   exercises: z.array(exerciseSchema),
   runTarget: z
     .object({
@@ -76,6 +94,7 @@ export const userProfileSchema = z.object({
 });
 
 export const userDataSchema = z.object({
+  schemaVersion: z.number().optional(),
   profile: userProfileSchema,
   history: z.array(workoutDaySchema),
   currentPlan: z.array(workoutDaySchema),
@@ -85,6 +104,7 @@ export const userDataSchema = z.object({
 export type UnitSystem = z.infer<typeof unitSystemSchema>;
 export type DayType = z.infer<typeof dayTypeSchema>;
 export type ExerciseSet = z.infer<typeof exerciseSetSchema>;
+export type ExerciseAlternative = z.infer<typeof exerciseAlternativeSchema>;
 export type Exercise = z.infer<typeof exerciseSchema>;
 export type WorkoutDay = z.infer<typeof workoutDaySchema>;
 export type UserProfile = z.infer<typeof userProfileSchema>;

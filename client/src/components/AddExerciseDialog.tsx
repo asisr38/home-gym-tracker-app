@@ -49,6 +49,9 @@ const PREDEFINED_EXERCISES = [
   { name: "Russian Twists", category: "Core" },
 ];
 
+const toExerciseId = (name: string) =>
+  `custom-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}`;
+
 export function AddExerciseDialog({ onAdd, trigger }: AddExerciseDialogProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -60,10 +63,11 @@ export function AddExerciseDialog({ onAdd, trigger }: AddExerciseDialogProps) {
     ex.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  const handleAdd = (name: string) => {
+  const handleAdd = (name: string, muscleGroup?: string) => {
     const newExercise: Exercise = {
-      id: `custom-${Date.now()}`,
+      id: toExerciseId(name),
       name,
+      muscleGroup: muscleGroup || "Custom",
       sets: Array.from({ length: targetSets }, (_, i) => ({
         id: `s-${i + 1}`,
         targetReps,
@@ -112,7 +116,7 @@ export function AddExerciseDialog({ onAdd, trigger }: AddExerciseDialogProps) {
                   <button
                     key={ex.name}
                     className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-muted transition-colors text-left"
-                    onClick={() => handleAdd(ex.name)}
+                    onClick={() => handleAdd(ex.name, ex.category)}
                   >
                     <span>{ex.name}</span>
                     <span className="text-xs text-muted-foreground">{ex.category}</span>

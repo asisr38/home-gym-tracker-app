@@ -68,7 +68,7 @@ export default function WeeklyBreakdown() {
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-sm font-semibold">Day {day.dayNumber}: {day.title}</div>
-                      <div className="text-[11px] text-muted-foreground capitalize">{day.type}</div>
+                      <div className="text-[11px] text-muted-foreground capitalize">{day.dayType || day.type}</div>
                     </div>
                     <div className="text-xs text-muted-foreground">{targetLabel}</div>
                   </div>
