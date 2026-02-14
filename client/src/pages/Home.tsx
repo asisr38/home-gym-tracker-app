@@ -7,14 +7,14 @@ import { Play, Calendar, Trophy, ChevronRight, Flame, BarChart3 } from "lucide-r
 import { useLocation } from "wouter";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { estimateDayMinutes, getWeeklyStats } from "@/lib/workout";
+import { estimateDayMinutes, getScheduledWorkoutForDate, getWeeklyStats } from "@/lib/workout";
 
 export default function Home() {
   const { profile, currentPlan } = useStore();
   const [, setLocation] = useLocation();
 
   const hasPlan = currentPlan.length > 0;
-  const nextWorkout = currentPlan.find(d => !d.completed) || currentPlan[0];
+  const nextWorkout = getScheduledWorkoutForDate(currentPlan);
   const weeklyStats = getWeeklyStats(currentPlan);
   const weeklyProgress = weeklyStats.plannedSets
     ? (weeklyStats.completedSets / weeklyStats.plannedSets) * 100
@@ -41,7 +41,7 @@ export default function Home() {
           </div>
         </div>
 
-        {!hasPlan && (
+        {(!hasPlan || !nextWorkout) && (
           <Card className="border-border/60 shadow-lg">
             <CardContent className="p-6 space-y-4">
               <div className="flex items-center gap-3">
@@ -50,7 +50,11 @@ export default function Home() {
                 </div>
                 <div>
                   <h3 className="font-semibold">No workout scheduled today</h3>
-                  <p className="text-xs text-muted-foreground">Build your plan to start tracking sessions.</p>
+                  <p className="text-xs text-muted-foreground">
+                    {hasPlan
+                      ? "Weekend recovery. Your split resumes on Monday."
+                      : "Build your plan to start tracking sessions."}
+                  </p>
                 </div>
               </div>
               <Button className="w-full h-12" onClick={() => setLocation("/plan")}>View Plan</Button>
@@ -140,7 +144,7 @@ export default function Home() {
           </Card>
         </button>
 
-        {hasPlan && nextWorkout && (
+        {hasPlan && (
           <div className="space-y-4">
             <h3 className="text-lg font-semibold flex items-center gap-2">
               <Calendar className="h-4 w-4 text-primary" />
@@ -153,7 +157,7 @@ export default function Home() {
                   className={cn(
                     "flex items-center p-3 rounded-lg border transition-all cursor-pointer hover:bg-muted/40 hover:border-primary/40 hover:shadow-sm",
                     day.completed ? "bg-muted/20 border-primary/20" : "bg-card border-border/70",
-                    day.id === nextWorkout.id && "ring-1 ring-primary border-primary"
+                    day.id === nextWorkout?.id && "ring-1 ring-primary border-primary"
                   )}
                   onClick={() => setLocation(`/session/${day.id}`)}
                 >

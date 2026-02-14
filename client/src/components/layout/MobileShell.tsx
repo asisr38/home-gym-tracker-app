@@ -17,16 +17,16 @@ export function MobileShell({ children }: MobileShellProps) {
 
   return (
     <div className="min-h-screen text-foreground flex justify-center app-shell">
-      <div className="w-full max-w-md h-[100dvh] flex flex-col relative overflow-hidden app-panel shadow-2xl ring-1 ring-black/5 dark:ring-white/10 border border-border/60 sm:rounded-[28px]">
+      <div className="w-full max-w-md h-[100dvh] flex flex-col relative overflow-hidden app-panel safe-px shadow-2xl ring-1 ring-black/5 dark:ring-white/10 border border-border/60 sm:rounded-[28px]">
         {/* Main Content Area */}
-        <main className="flex-1 overflow-y-auto no-scrollbar scroll-smooth">
+        <main className="flex-1 overflow-y-auto no-scrollbar scroll-smooth safe-pt">
           {children}
           {/* Spacer for bottom nav */}
           <div className="h-24" /> 
         </main>
 
         {/* Bottom Navigation */}
-        <nav className="absolute bottom-0 left-0 right-0 border-t border-border/60 bg-background/75 backdrop-blur-xl safe-pb z-50">
+        <nav className="absolute bottom-0 left-0 right-0 border-t border-border/60 bg-background/75 backdrop-blur-xl safe-px safe-pb z-50">
           <div className="flex justify-around items-center h-16 px-2">
             {navItems.map((item) => {
               const Icon = item.icon;

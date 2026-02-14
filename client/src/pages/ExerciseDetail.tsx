@@ -27,6 +27,7 @@ import { ToastAction } from "@/components/ui/toast";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { getLastWeekBestForExercise } from "@/lib/progression";
 
 type Params = {
   dayId: string;
@@ -128,6 +129,10 @@ export default function ExerciseDetail() {
   }, [exercise, history]);
 
   const historyTrend = useMemo(() => [...historyEntries].reverse(), [historyEntries]);
+  const lastWeekBest = useMemo(
+    () => getLastWeekBestForExercise(history, exercise?.name ?? "", profile.startOfWeek),
+    [exercise?.name, history, profile.startOfWeek],
+  );
   const sparklinePoints = useMemo(() => {
     const weights = historyTrend
       .map((entry) => entry.weight)
@@ -193,7 +198,7 @@ export default function ExerciseDetail() {
 
   return (
     <div className="min-h-screen app-shell flex justify-center">
-      <div className="w-full max-w-md min-h-screen bg-background app-panel shadow-2xl ring-1 ring-black/5 dark:ring-white/10 border border-border/60 sm:rounded-[28px] pb-28">
+      <div className="w-full max-w-md min-h-screen bg-background app-panel safe-px safe-pt shadow-2xl ring-1 ring-black/5 dark:ring-white/10 border border-border/60 sm:rounded-[28px] pb-28">
         <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b p-4 space-y-3">
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="icon" onClick={() => setLocation(`/session/${dayId}`)}>
@@ -241,6 +246,14 @@ export default function ExerciseDetail() {
                 <span>Sets logged</span>
                 <span>
                   {completedSetCount}/{exercise.sets.length}
+                </span>
+              </div>
+              <div className="flex items-center justify-between rounded-md border border-border/60 bg-muted/20 px-2 py-1 text-xs text-muted-foreground">
+                <span>Last week best</span>
+                <span className="font-mono text-foreground">
+                  {lastWeekBest
+                    ? `${lastWeekBest.weight} ${unitLabel} x ${lastWeekBest.reps ?? "--"}`
+                    : "--"}
                 </span>
               </div>
               <Progress value={setProgress} className="h-1.5" />
@@ -605,7 +618,7 @@ export default function ExerciseDetail() {
           </Card>
         </div>
 
-        <div className="sticky bottom-0 z-10 border-t bg-background/95 backdrop-blur p-4">
+        <div className="sticky bottom-0 z-10 border-t bg-background/95 backdrop-blur p-4 safe-pb">
           <div className="grid grid-cols-2 gap-2">
             <Button
               type="button"

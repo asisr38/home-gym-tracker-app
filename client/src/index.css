@@ -175,7 +175,16 @@
 
 /* Mobile Safe Area helper */
 .safe-pb {
-  padding-bottom: env(safe-area-inset-bottom);
+  padding-bottom: max(env(safe-area-inset-bottom), 0px);
+}
+
+.safe-pt {
+  padding-top: max(env(safe-area-inset-top), 0px);
+}
+
+.safe-px {
+  padding-left: max(env(safe-area-inset-left), 0px);
+  padding-right: max(env(safe-area-inset-right), 0px);
 }
 
 @keyframes tilt {

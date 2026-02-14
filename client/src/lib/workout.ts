@@ -1,5 +1,13 @@
 import type { WorkoutDay } from "@/lib/store";
 
+const WEEKDAY_TO_PLAN_DAY_NUMBER: Partial<Record<number, number>> = {
+  1: 1, // Monday -> Upper A
+  2: 2, // Tuesday -> Lower A
+  3: 3, // Wednesday -> Rest/Cardio
+  4: 4, // Thursday -> Upper B
+  5: 5, // Friday -> Lower B
+};
+
 export const getPlannedSetsForDay = (day: WorkoutDay) =>
   day.exercises.reduce((acc, exercise) => acc + exercise.sets.length, 0);
 
@@ -28,4 +36,17 @@ export const estimateDayMinutes = (day: WorkoutDay) => {
   }
 
   return 15;
+};
+
+export const getScheduledWorkoutForDate = (
+  plan: WorkoutDay[],
+  date: Date = new Date(),
+) => {
+  const dayNumber = WEEKDAY_TO_PLAN_DAY_NUMBER[date.getDay()];
+  if (!dayNumber) return null;
+  return (
+    plan.find((day) => day.dayNumber === dayNumber) ||
+    plan[dayNumber - 1] ||
+    null
+  );
 };
