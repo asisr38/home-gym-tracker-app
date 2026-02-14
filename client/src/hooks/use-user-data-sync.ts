@@ -69,7 +69,11 @@ export function useUserDataSync(user: User | null) {
         if (remoteData) {
           useStore.getState().applyUserData(remoteData);
           const localData = useStore.getState().getUserData();
-          if (remoteData.history.length > localData.history.length) {
+          const remoteSchemaVersion = remoteData.schemaVersion ?? 0;
+          const localSchemaVersion = localData.schemaVersion ?? 0;
+          if (remoteSchemaVersion < localSchemaVersion) {
+            await saveUserData(user, localData);
+          } else if (remoteData.history.length > localData.history.length) {
             await saveUserData(user, localData);
           }
         } else {

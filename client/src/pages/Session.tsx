@@ -264,8 +264,9 @@ export default function Session() {
     const distanceValue = runDistance.trim() === "" ? null : parseFloat(runDistance);
     const timeValue = runTime.trim() === "" ? null : parseFloat(runTime) * 60;
     const hasRunData = distanceValue !== null || timeValue !== null;
+    const allowRunLogging = resolvedDay.type === "run" || !!resolvedDay.runTarget;
     const runData =
-      (resolvedDay.type !== "lift" || resolvedDay.runTarget) && hasRunData
+      allowRunLogging && hasRunData
         ? {
           distance: distanceValue ?? 0,
           timeSeconds: timeValue ?? 0,
@@ -296,16 +297,16 @@ export default function Session() {
     setLocation("/");
   };
 
-  const isLegDay = resolvedDay.title.toLowerCase().includes('leg');
+  const isLegDay = resolvedDay.dayType === "legs" || resolvedDay.title.toLowerCase().includes("leg") || resolvedDay.title.toLowerCase().includes("lower");
   const hintText = (() => {
     const title = resolvedDay.title.toLowerCase();
     if (resolvedDay.type === "run") return "Easy pace. Breathe through the nose.";
     if (resolvedDay.type === "recovery") return "Light effort. Keep it restorative.";
-    if (title.includes("push")) return "Control the tempo. Full range.";
-    if (title.includes("pull")) return "Squeeze the back. No momentum.";
-    if (title.includes("leg")) return "Drive through heels. Stay tight.";
+    if (resolvedDay.dayType === "push" || title.includes("push")) return "Control the tempo. Full range.";
+    if (resolvedDay.dayType === "pull" || title.includes("pull")) return "Squeeze the back. No momentum.";
+    if (resolvedDay.dayType === "legs" || title.includes("leg") || title.includes("lower")) return "Drive through heels. Stay tight.";
     if (title.includes("shoulder")) return "Brace core. Smooth reps.";
-    if (title.includes("full body")) return "Keep rest short. Stay crisp.";
+    if (resolvedDay.dayType === "full" || title.includes("full body")) return "Keep rest short. Stay crisp.";
     return "Quality reps. Leave 1-2 in reserve.";
   })();
   return (
@@ -558,7 +559,7 @@ export default function Session() {
           )}
 
         {/* Run / Cardio Section */}
-        {(isRunDay || resolvedDay.runTarget) && (
+        {(resolvedDay.type === "run" || resolvedDay.runTarget) && (
            <Card className="border-l-4 border-l-blue-500">
              <CardContent className="p-6 space-y-4">
                 <div className="flex items-center gap-3">

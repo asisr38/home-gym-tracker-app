@@ -12,7 +12,7 @@ import { ToastAction } from "@/components/ui/toast";
 
 export default function Profile() {
   const { profile, exportData, importData, resetPlan, restorePlan } = useStore();
-  const { user, signOutUser } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
   const goalLabelMap: Record<string, string> = {
     strength: "Strength",
@@ -126,9 +126,6 @@ export default function Profile() {
               </div>
               <Switch disabled />
             </div>
-            <Button variant="outline" className="w-full justify-start" onClick={signOutUser}>
-              Sign out
-            </Button>
             <Button variant="outline" className="w-full justify-start" onClick={handleExport}>
               <Download className="mr-2 h-4 w-4" /> Export Data (JSON)
             </Button>

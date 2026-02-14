@@ -9,11 +9,13 @@ import {
   type UserData,
   type UserProfile,
   type WorkoutDay,
+  type Exercise,
   type ExerciseSet,
   type DayType,
   type GoalType,
   type Equipment,
 } from "@shared/userData";
+import { buildUpperLowerPlan } from "@/lib/upperLowerPlan";
 
 export type {
   UnitSystem,
@@ -97,7 +99,7 @@ const pruneHistory = (history: WorkoutDay[]) => {
 };
 
 const ensureEquipment = (equipment?: Equipment[]) => {
-  const list = equipment && equipment.length ? [...equipment] : ["bodyweight"];
+  const list: Equipment[] = equipment && equipment.length ? [...equipment] : ["bodyweight"];
   if (!list.includes("bodyweight")) {
     list.push("bodyweight");
   }
@@ -249,330 +251,7 @@ const buildDay = (
 
 const roundDistance = (value: number) => Math.round(value * 10) / 10;
 
-const buildPlan = (profile: UserProfile): WorkoutDay[] => {
-  const goalType = profile.goalType || inferGoalType(profile.goal);
-  const equipment = ensureEquipment(profile.equipment);
-
-  const runBase = Math.max(profile.dailyRunTarget || 2, 0.5);
-  const runMultiplier =
-    goalType === "endurance" ? 1.3 : goalType === "fat_loss" ? 1.15 : goalType === "strength" ? 0.85 : 1;
-  const recoveryDistance = roundDistance(runBase * runMultiplier);
-  const longRunDistance = roundDistance(runBase * (goalType === "endurance" ? 2.5 : 2));
-
-  return [
-    buildDay(
-      1,
-      "Push Day",
-      "push",
-      [
-        {
-          tier: "compound",
-          muscleGroup: "Chest",
-          options: [
-            { name: "Barbell Bench Press", requires: ["barbell", "bench"] },
-            { name: "DB Flat Bench Press", requires: ["dumbbell", "bench"] },
-            { name: "Band Chest Press", requires: ["bands"] },
-            { name: "Pushups", requires: ["bodyweight"] },
-          ],
-        },
-        {
-          tier: "accessory",
-          muscleGroup: "Chest",
-          options: [
-            { name: "Incline DB Press", requires: ["dumbbell", "bench"] },
-            { name: "Feet-Elevated Pushups", requires: ["bodyweight", "bench"] },
-            { name: "Band Incline Press", requires: ["bands"] },
-            { name: "Pushups", requires: ["bodyweight"] },
-          ],
-        },
-        {
-          tier: "compound",
-          muscleGroup: "Shoulders",
-          options: [
-            { name: "Barbell Overhead Press", requires: ["barbell"] },
-            { name: "DB Overhead Press", requires: ["dumbbell"] },
-            { name: "Kettlebell Press", requires: ["kettlebell"] },
-            { name: "Pike Pushups", requires: ["bodyweight"] },
-          ],
-        },
-        {
-          tier: "accessory",
-          muscleGroup: "Triceps",
-          options: [
-            { name: "EZ Skullcrushers", requires: ["barbell", "bench"] },
-            { name: "DB Skullcrushers", requires: ["dumbbell", "bench"] },
-            { name: "Band Triceps Pressdown", requires: ["bands"] },
-            { name: "Bench Dips", requires: ["bench", "bodyweight"] },
-            { name: "Diamond Pushups", requires: ["bodyweight"] },
-          ],
-        },
-        {
-          tier: "accessory",
-          muscleGroup: "Chest",
-          options: [
-            { name: "DB Chest Fly", requires: ["dumbbell", "bench"] },
-            { name: "Band Pushups", requires: ["bands"] },
-            { name: "Decline Pushups", requires: ["bodyweight", "bench"] },
-            { name: "Pushups", requires: ["bodyweight"] },
-          ],
-        },
-      ],
-      goalType,
-      equipment,
-    ),
-    buildDay(
-      2,
-      "Leg Day",
-      "legs",
-      [
-        {
-          tier: "compound",
-          muscleGroup: "Hamstrings",
-          options: [
-            { name: "Barbell RDL", requires: ["barbell"] },
-            { name: "DB RDL", requires: ["dumbbell"] },
-            { name: "KB RDL", requires: ["kettlebell"] },
-            { name: "Band Good Morning", requires: ["bands"] },
-            { name: "Single-Leg RDL", requires: ["bodyweight"] },
-          ],
-        },
-        {
-          tier: "compound",
-          muscleGroup: "Quads",
-          options: [
-            { name: "Front Squat", requires: ["barbell"] },
-            { name: "Goblet Squats", requires: ["dumbbell"] },
-            { name: "Kettlebell Goblet Squat", requires: ["kettlebell"] },
-            { name: "Band Squat", requires: ["bands"] },
-            { name: "Bodyweight Squats", requires: ["bodyweight"] },
-          ],
-        },
-        {
-          tier: "accessory",
-          muscleGroup: "Glutes",
-          options: [
-            { name: "DB Walking Lunges", requires: ["dumbbell"] },
-            { name: "Walking Lunges", requires: ["bodyweight"] },
-            { name: "Split Squats", requires: ["bodyweight"] },
-          ],
-        },
-        {
-          tier: "accessory",
-          muscleGroup: "Calves",
-          options: [
-            { name: "Weighted Calf Raises", requires: ["dumbbell"] },
-            { name: "Barbell Calf Raises", requires: ["barbell"] },
-            { name: "Single-Leg Calf Raises", requires: ["bodyweight"] },
-          ],
-        },
-        {
-          tier: "accessory",
-          muscleGroup: "Glutes",
-          options: [
-            { name: "Hip Thrust", requires: ["barbell", "bench"] },
-            { name: "Band Glute Bridge", requires: ["bands"] },
-            { name: "Glute Bridge", requires: ["bodyweight"] },
-          ],
-        },
-      ],
-      goalType,
-      equipment,
-    ),
-    buildDay(
-      3,
-      "Pull Day",
-      "pull",
-      [
-        {
-          tier: "compound",
-          muscleGroup: "Back",
-          options: [
-            { name: "Barbell Bent-Over Row", requires: ["barbell"] },
-            { name: "Single-Arm DB Row", requires: ["dumbbell", "bench"] },
-            { name: "Band Row", requires: ["bands"] },
-            { name: "Inverted Row", requires: ["rack", "bodyweight"] },
-            { name: "Back Extensions", requires: ["bodyweight"] },
-          ],
-        },
-        {
-          tier: "compound",
-          muscleGroup: "Back",
-          options: [
-            { name: "Pullups", requires: ["rack", "bodyweight"] },
-            { name: "Band Lat Pulldown", requires: ["bands"] },
-            { name: "DB Pullovers", requires: ["dumbbell"] },
-            { name: "Prone YTWs", requires: ["bodyweight"] },
-          ],
-        },
-        {
-          tier: "accessory",
-          muscleGroup: "Biceps",
-          options: [
-            { name: "EZ Bar Curls", requires: ["barbell"] },
-            { name: "DB Curls", requires: ["dumbbell"] },
-            { name: "Band Curls", requires: ["bands"] },
-            { name: "Reverse Snow Angels", requires: ["bodyweight"] },
-          ],
-        },
-        {
-          tier: "accessory",
-          muscleGroup: "Rear Delts",
-          options: [
-            { name: "DB Rear Delt Fly", requires: ["dumbbell"] },
-            { name: "Band Face Pull", requires: ["bands"] },
-            { name: "Reverse Snow Angels", requires: ["bodyweight"] },
-          ],
-        },
-        {
-          tier: "core",
-          muscleGroup: "Core",
-          options: [
-            { name: "Farmer Carry", requires: ["dumbbell"] },
-            { name: "Suitcase Carry", requires: ["kettlebell"] },
-            { name: "Superman Hold", requires: ["bodyweight"] },
-          ],
-        },
-      ],
-      goalType,
-      equipment,
-    ),
-    buildDay(
-      4,
-      "Shoulders & Abs",
-      "full",
-      [
-        {
-          tier: "compound",
-          muscleGroup: "Shoulders",
-          options: [
-            { name: "Barbell Overhead Press", requires: ["barbell"] },
-            { name: "DB Overhead Press", requires: ["dumbbell"] },
-            { name: "Kettlebell Press", requires: ["kettlebell"] },
-            { name: "Pike Pushups", requires: ["bodyweight"] },
-          ],
-        },
-        {
-          tier: "accessory",
-          muscleGroup: "Shoulders",
-          options: [
-            { name: "DB Lateral Raises", requires: ["dumbbell"] },
-            { name: "Band Lateral Raises", requires: ["bands"] },
-            { name: "Y-Raises", requires: ["bodyweight"] },
-          ],
-        },
-        {
-          tier: "accessory",
-          muscleGroup: "Shoulders",
-          options: [
-            { name: "EZ Upright Rows", requires: ["barbell"] },
-            { name: "DB Upright Rows", requires: ["dumbbell"] },
-            { name: "Band Upright Row", requires: ["bands"] },
-            { name: "Prone W Raises", requires: ["bodyweight"] },
-          ],
-        },
-        {
-          tier: "core",
-          muscleGroup: "Core",
-          options: [
-            { name: "Russian Twists", requires: ["bodyweight"] },
-            { name: "DB Russian Twists", requires: ["dumbbell"] },
-            { name: "Bicycle Crunches", requires: ["bodyweight"] },
-          ],
-        },
-        {
-          tier: "core",
-          muscleGroup: "Core",
-          options: [
-            { name: "Lying Leg Raises", requires: ["bodyweight"] },
-            { name: "Dead Bug", requires: ["bodyweight"] },
-          ],
-        },
-      ],
-      goalType,
-      equipment,
-    ),
-    buildDay(
-      5,
-      "Full Body Metabolic",
-      "full",
-      [
-        {
-          tier: "compound",
-          muscleGroup: "Full Body",
-          options: [
-            { name: "Barbell Thrusters", requires: ["barbell"] },
-            { name: "DB Thrusters", requires: ["dumbbell"] },
-            { name: "Kettlebell Thrusters", requires: ["kettlebell"] },
-            { name: "Bodyweight Squat + Press", requires: ["bodyweight"] },
-          ],
-        },
-        {
-          tier: "accessory",
-          muscleGroup: "Core",
-          options: [
-            { name: "Barbell Floor Wipers", requires: ["barbell"] },
-            { name: "Band Dead Bug", requires: ["bands"] },
-            { name: "Mountain Climbers", requires: ["bodyweight"] },
-          ],
-        },
-        {
-          tier: "accessory",
-          muscleGroup: "Back",
-          options: [
-            { name: "Renegade Rows", requires: ["dumbbell"] },
-            { name: "Band Rows", requires: ["bands"] },
-            { name: "Plank Rows", requires: ["bodyweight"] },
-          ],
-        },
-        {
-          tier: "accessory",
-          muscleGroup: "Chest",
-          options: [
-            { name: "Decline Pushups", requires: ["bodyweight", "bench"] },
-            { name: "Band Pushups", requires: ["bands"] },
-            { name: "Pushups", requires: ["bodyweight"] },
-          ],
-        },
-        {
-          tier: "core",
-          muscleGroup: "Core",
-          options: [
-            { name: "Plank", requires: ["bodyweight"] },
-            { name: "Side Plank", requires: ["bodyweight"] },
-          ],
-        },
-      ],
-      goalType,
-      equipment,
-    ),
-    {
-      id: "day-6",
-      dayNumber: 6,
-      title: "Active Recovery Run",
-      type: "run",
-      dayType: "cardio",
-      completed: false,
-      exercises: [],
-      runTarget: {
-        distance: recoveryDistance,
-        description: "Easy pace, keep HR low.",
-      },
-    },
-    {
-      id: "day-7",
-      dayNumber: 7,
-      title: "Long Run / Rest",
-      type: "recovery",
-      dayType: "cardio",
-      completed: false,
-      exercises: [],
-      runTarget: {
-        distance: longRunDistance,
-        description: "Longer distance or complete rest.",
-      },
-    },
-  ];
-};
+const buildPlan = (_profile: UserProfile): WorkoutDay[] => buildUpperLowerPlan();
 
 const DEFAULT_PROFILE: UserProfile = {
   name: "",
@@ -598,6 +277,19 @@ const normalizeDayData = (day: WorkoutDay): WorkoutDay => ({
   ...day,
   dayType: day.dayType ?? inferDayType(day.title, day.type),
 });
+
+const LEGACY_DEFAULT_DAY_TITLES = new Set([
+  "Push Day",
+  "Leg Day",
+  "Pull Day",
+  "Shoulders & Abs",
+  "Full Body Metabolic",
+  "Active Recovery Run",
+  "Long Run / Rest",
+]);
+
+const looksLikeLegacyDefaultPlan = (plan?: WorkoutDay[]) =>
+  (plan || []).some((day) => LEGACY_DEFAULT_DAY_TITLES.has(day.title));
 
 export const useStore = create<AppState>()(
   persist(
@@ -887,8 +579,15 @@ export const useStore = create<AppState>()(
           const data = userDataSchema.parse(JSON.parse(json));
           const normalizedProfile = normalizeProfile(data.profile);
           const normalizedHistory = pruneHistory((data.history || []).map(normalizeDayData));
-          const normalizedPlan =
-            data.currentPlan?.length ? data.currentPlan.map(normalizeDayData) : buildPlan(normalizedProfile);
+          const importedPlan = data.currentPlan?.length ? data.currentPlan.map(normalizeDayData) : [];
+          const incomingSchemaVersion = data.schemaVersion ?? 0;
+          const shouldUpgradePlan =
+            incomingSchemaVersion < 2 && looksLikeLegacyDefaultPlan(importedPlan);
+          const normalizedPlan = shouldUpgradePlan
+            ? buildPlan(normalizedProfile)
+            : importedPlan.length
+              ? importedPlan
+              : buildPlan(normalizedProfile);
           set({
             profile: normalizedProfile,
             history: normalizedHistory,
@@ -903,17 +602,25 @@ export const useStore = create<AppState>()(
       applyUserData: (data) =>
         set(() => {
           const normalizedProfile = normalizeProfile(data.profile);
+          const normalizedIncomingPlan = data.currentPlan?.length
+            ? data.currentPlan.map(normalizeDayData)
+            : [];
+          const incomingSchemaVersion = data.schemaVersion ?? 0;
+          const shouldUpgradePlan =
+            incomingSchemaVersion < 2 && looksLikeLegacyDefaultPlan(normalizedIncomingPlan);
           return {
             profile: normalizedProfile,
             history: pruneHistory((data.history || []).map(normalizeDayData)),
-            currentPlan: data.currentPlan?.length
-              ? data.currentPlan.map(normalizeDayData)
-              : buildPlan(normalizedProfile),
+            currentPlan: shouldUpgradePlan
+              ? buildPlan(normalizedProfile)
+              : normalizedIncomingPlan.length
+                ? normalizedIncomingPlan
+                : buildPlan(normalizedProfile),
           };
         }),
 
       getUserData: () => ({
-        schemaVersion: 1,
+        schemaVersion: 2,
         profile: get().profile,
         history: pruneHistory(get().history),
         currentPlan: get().currentPlan,
@@ -931,10 +638,10 @@ export const useStore = create<AppState>()(
     {
       name: 'iron-stride-storage',
       storage: createJSONStorage(() => userStorage),
-      version: 3,
+      version: 4,
       migrate: (persistedState) => {
         const wrapped = persistedState as { state?: AppState } | AppState;
-        const state = ("state" in wrapped ? wrapped.state : wrapped) || {};
+        const state = (("state" in wrapped ? wrapped.state : wrapped) || {}) as Partial<AppState>;
         const normalizedProfile = normalizeProfile({
           ...DEFAULT_PROFILE,
           ...(state.profile || {}),
@@ -945,15 +652,24 @@ export const useStore = create<AppState>()(
         });
         const normalizedPlan = (state.currentPlan || []).map(normalizeDay);
         const normalizedHistory = (state.history || []).map(normalizeDay);
-        const normalizedLogs = (state.setLogs || []).map((log) => ({
+        const normalizedLogs = (state.setLogs || []).map((log: LoggedSet) => ({
           ...log,
           exerciseName: log.exerciseName || "Exercise",
         }));
+
+        // Upgrade the old default plan to the new JSON-backed one, but avoid
+        // clobbering custom plans.
+        const shouldReplacePlan = looksLikeLegacyDefaultPlan(normalizedPlan);
+        const nextPlan = shouldReplacePlan
+          ? buildPlan(normalizedProfile)
+          : normalizedPlan.length
+            ? normalizedPlan
+            : buildPlan(normalizedProfile);
         return {
           ...state,
           profile: normalizedProfile,
           history: pruneHistory(normalizedHistory),
-          currentPlan: normalizedPlan.length ? normalizedPlan : buildPlan(normalizedProfile),
+          currentPlan: nextPlan,
           setLogs: normalizedLogs,
         } as AppState;
       },

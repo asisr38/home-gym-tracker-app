@@ -165,7 +165,7 @@ export default function Home() {
                   </div>
                   <div className="flex-1">
                     <h4 className="font-semibold text-sm">{day.title}</h4>
-                    <p className="text-xs text-muted-foreground capitalize">{day.type}</p>
+                    <p className="text-xs text-muted-foreground capitalize">{day.dayType || day.type}</p>
                   </div>
                   {day.completed ? (
                     <Trophy className="h-4 w-4 text-primary" />
