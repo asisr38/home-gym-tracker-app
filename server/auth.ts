@@ -1,9 +1,8 @@
 import type { NextFunction, Request, Response } from "express";
-import type { DecodedIdToken } from "firebase-admin/auth";
-import { firebaseAuth } from "./firebase";
+import { supabaseDisabledMessage, getSupabaseAdmin } from "./supabase";
 
 export interface AuthedRequest extends Request {
-  user: DecodedIdToken;
+  userId: string;
 }
 
 export async function requireUser(
@@ -11,6 +10,11 @@ export async function requireUser(
   res: Response,
   next: NextFunction,
 ) {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) {
+    return res.status(503).json({ message: supabaseDisabledMessage });
+  }
+
   const authHeader = req.headers.authorization || "";
   const match = authHeader.match(/^Bearer (.+)$/);
   if (!match) {
@@ -18,10 +22,13 @@ export async function requireUser(
   }
 
   try {
-    const decoded = await firebaseAuth.verifyIdToken(match[1]);
-    (req as AuthedRequest).user = decoded;
+    const { data: { user }, error } = await supabase.auth.getUser(match[1]);
+    if (error || !user) {
+      return res.status(401).json({ message: "Invalid auth token." });
+    }
+    (req as AuthedRequest).userId = user.id;
     return next();
-  } catch (error) {
+  } catch {
     return res.status(401).json({ message: "Invalid auth token." });
   }
 }

@@ -27,6 +27,9 @@ export default function Plan() {
             <p className="text-xs text-muted-foreground">
               Tailored for {goalLabelMap[profile.goalType]} using {profile.equipment.length} equipment options.
             </p>
+            <p className="text-xs text-muted-foreground">
+              Toggle edit mode to build a custom routine by adding or removing exercises.
+            </p>
           </div>
           <Button
             variant={isEditing ? "default" : "outline"}

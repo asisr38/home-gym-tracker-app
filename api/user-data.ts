@@ -1,6 +1,15 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { firestore, firebaseAuth } from "../server/firebase";
+import { createClient } from "@supabase/supabase-js";
+import { ensureLocalEnvLoaded } from "../server/env";
 import { userDataSchema } from "../shared/userData";
+
+ensureLocalEnvLoaded();
+
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseConfigured = Boolean(supabaseUrl && supabaseServiceRoleKey);
+const supabaseDisabledMessage =
+  "Supabase credentials are not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY. Cloud sync is unavailable.";
 
 const MAX_HISTORY_DAYS = 30;
 const MS_IN_DAY = 24 * 60 * 60 * 1000;
@@ -16,6 +25,11 @@ const pruneHistory = (history: Array<{ dateCompleted?: string }>) => {
 };
 
 async function getUserId(req: VercelRequest, res: VercelResponse) {
+  if (!supabaseConfigured) {
+    res.status(503).json({ message: supabaseDisabledMessage });
+    return null;
+  }
+
   const authHeader = req.headers.authorization || "";
   const match = authHeader.match(/^Bearer (.+)$/);
   if (!match) {
@@ -24,28 +38,47 @@ async function getUserId(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const decoded = await firebaseAuth.verifyIdToken(match[1]);
-    return decoded.uid;
-  } catch (error) {
+    const supabase = createClient(supabaseUrl!, supabaseServiceRoleKey!, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { data: { user }, error } = await supabase.auth.getUser(match[1]);
+    if (error || !user) {
+      res.status(401).json({ message: "Invalid auth token." });
+      return null;
+    }
+    return user.id;
+  } catch {
     res.status(401).json({ message: "Invalid auth token." });
     return null;
   }
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const uid = await getUserId(req, res);
-  if (!uid) return;
+  const userId = await getUserId(req, res);
+  if (!userId) return;
+
+  const supabase = createClient(supabaseUrl!, supabaseServiceRoleKey!, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
 
   if (req.method === "GET") {
-    const docRef = firestore.collection("userData").doc(uid);
-    const doc = await docRef.get();
+    const { data, error } = await supabase
+      .from("user_data")
+      .select("data")
+      .eq("user_id", userId)
+      .single();
 
-    if (!doc.exists) {
+    if (error && error.code !== "PGRST116") {
+      res.status(500).json({ message: "Failed to load user data." });
+      return;
+    }
+
+    if (!data) {
       res.status(204).send("");
       return;
     }
 
-    res.status(200).json(doc.data());
+    res.status(200).json(data.data);
     return;
   }
 
@@ -59,24 +92,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return;
       }
     }
+
     const parseResult = userDataSchema.safeParse(payload);
     if (!parseResult.success) {
       res.status(400).json({ message: "Invalid data payload." });
       return;
     }
 
-    const docRef = firestore.collection("userData").doc(uid);
     const prunedData = {
       ...parseResult.data,
       history: pruneHistory(parseResult.data.history),
     };
-    await docRef.set(
+
+    const { error } = await supabase.from("user_data").upsert(
       {
-        ...prunedData,
-        updatedAt: Date.now(),
+        user_id: userId,
+        data: prunedData,
+        updated_at: new Date().toISOString(),
       },
-      { merge: true },
+      { onConflict: "user_id" },
     );
+
+    if (error) {
+      res.status(500).json({ message: "Failed to save user data." });
+      return;
+    }
 
     res.status(200).json({ ok: true });
     return;

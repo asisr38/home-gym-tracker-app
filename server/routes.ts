@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { type Server } from "http";
 import { requireUser, type AuthedRequest } from "./auth";
-import { firestore } from "./firebase";
+import { supabaseDisabledMessage, getSupabaseAdmin } from "./supabase";
 import { userDataSchema } from "@shared/userData";
 
 const MAX_HISTORY_DAYS = 30;
@@ -21,40 +21,57 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  // put application routes here
-  // prefix all routes with /api
-
   app.get("/api/user-data", requireUser, async (req, res) => {
-    const { user } = req as AuthedRequest;
-    const docRef = firestore.collection("userData").doc(user.uid);
-    const doc = await docRef.get();
-
-    if (!doc.exists) {
-      return res.status(204).send();
+    const supabase = getSupabaseAdmin();
+    if (!supabase) {
+      return res.status(503).json({ message: supabaseDisabledMessage });
     }
 
-    return res.json(doc.data());
+    const { userId } = req as AuthedRequest;
+    const { data, error } = await supabase
+      .from("user_data")
+      .select("data")
+      .eq("user_id", userId)
+      .single();
+
+    // PGRST116 = no rows found
+    if (error && error.code !== "PGRST116") {
+      return res.status(500).json({ message: "Failed to load user data." });
+    }
+
+    if (!data) return res.status(204).send();
+    return res.json(data.data);
   });
 
   app.post("/api/user-data", requireUser, async (req, res) => {
-    const { user } = req as AuthedRequest;
+    const supabase = getSupabaseAdmin();
+    if (!supabase) {
+      return res.status(503).json({ message: supabaseDisabledMessage });
+    }
+
+    const { userId } = req as AuthedRequest;
     const parseResult = userDataSchema.safeParse(req.body);
     if (!parseResult.success) {
       return res.status(400).json({ message: "Invalid data payload." });
     }
 
-    const docRef = firestore.collection("userData").doc(user.uid);
     const prunedData = {
       ...parseResult.data,
       history: pruneHistory(parseResult.data.history),
     };
-    await docRef.set(
+
+    const { error } = await supabase.from("user_data").upsert(
       {
-        ...prunedData,
-        updatedAt: Date.now(),
+        user_id: userId,
+        data: prunedData,
+        updated_at: new Date().toISOString(),
       },
-      { merge: true },
+      { onConflict: "user_id" },
     );
+
+    if (error) {
+      return res.status(500).json({ message: "Failed to save user data." });
+    }
 
     return res.json({ ok: true });
   });

@@ -7,6 +7,7 @@ import { TrendingUp, Activity, Calendar, Flame } from "lucide-react";
 import { format } from "date-fns";
 
 const MS_IN_DAY = 24 * 60 * 60 * 1000;
+type ExerciseSessionEntry = { date: number; weight: number | null };
 
 export default function History() {
   const { history, profile } = useStore();
@@ -16,7 +17,7 @@ export default function History() {
     const currentWeekStart = now - 7 * MS_IN_DAY;
     const previousWeekStart = now - 14 * MS_IN_DAY;
 
-    const exerciseSessions = new Map<string, { date: number; weight: number | null }[]>();
+    const exerciseSessions = new Map<string, ExerciseSessionEntry[]>();
     let currentWeekVolume = 0;
     let previousWeekVolume = 0;
     let cardioTotalSeconds = 0;
@@ -72,8 +73,8 @@ export default function History() {
       });
     });
 
-    const strength = [...exerciseSessions.entries()].map(([name, sessions]) => {
-      const sorted = sessions.sort((a, b) => b.date - a.date);
+    const strength = Array.from(exerciseSessions.entries()).map(([name, sessions]) => {
+      const sorted = [...sessions].sort((a, b) => b.date - a.date);
       const bestWeight = sorted.reduce((max, entry) => {
         if (entry.weight === null) return max;
         return Math.max(max, entry.weight ?? 0);
@@ -87,7 +88,7 @@ export default function History() {
     strength.sort((a, b) => b.bestWeight - a.bestWeight);
 
     const streak = (() => {
-      const uniqueDays = [...dayKeys].sort((a, b) => (a > b ? -1 : 1));
+      const uniqueDays = Array.from(dayKeys).sort((a, b) => (a > b ? -1 : 1));
       let count = 0;
       let cursor = new Date().toISOString().slice(0, 10);
       for (const day of uniqueDays) {

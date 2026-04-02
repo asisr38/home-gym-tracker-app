@@ -1,4 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
+import { supabaseConfigured, supabaseDisabledMessage } from "./supabase";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
@@ -33,6 +34,45 @@ export function log(message: string, source = "express") {
   console.log(`${formattedTime} [${source}] ${message}`);
 }
 
+async function listenOnAvailablePort(
+  server: ReturnType<typeof createServer>,
+  preferredPort: number,
+  { host, allowFallback }: { host: string; allowFallback: boolean },
+) {
+  let port = preferredPort;
+
+  while (true) {
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const handleListening = () => {
+          server.off("error", handleError);
+          resolve();
+        };
+
+        const handleError = (error: NodeJS.ErrnoException) => {
+          server.off("listening", handleListening);
+          reject(error);
+        };
+
+        server.once("listening", handleListening);
+        server.once("error", handleError);
+        server.listen({ port, host });
+      });
+
+      return port;
+    } catch (error) {
+      if (error && typeof error === "object" && "code" in error && error.code === "EADDRINUSE" && allowFallback) {
+        const nextPort = port + 1;
+        log(`port ${port} is in use, retrying on ${nextPort}`, "express");
+        port = nextPort;
+        continue;
+      }
+
+      throw error;
+    }
+  }
+}
+
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
@@ -50,6 +90,10 @@ app.use((req, res, next) => {
 
 (async () => {
   await registerRoutes(httpServer, app);
+
+  if (!supabaseConfigured) {
+    log(supabaseDisabledMessage, "supabase");
+  }
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
@@ -73,15 +117,11 @@ app.use((req, res, next) => {
   // Other ports are firewalled. Default to 5000 if not specified.
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || "5000", 10);
-  httpServer.listen(
-    {
-      port,
-      host: "0.0.0.0",
-      reusePort: true,
-    },
-    () => {
-      log(`serving on port ${port}`);
-    },
-  );
+  const explicitPort = process.env.PORT;
+  const port = parseInt(explicitPort || "5000", 10);
+  const resolvedPort = await listenOnAvailablePort(httpServer, port, {
+    host: "0.0.0.0",
+    allowFallback: process.env.NODE_ENV !== "production" && explicitPort == null,
+  });
+  log(`serving on port ${resolvedPort}`);
 })();

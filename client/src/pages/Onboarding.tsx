@@ -1,7 +1,7 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { useStore } from "@/lib/store";
+import { useStore, type Equipment } from "@/lib/store";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,10 @@ import { Separator } from "@/components/ui/separator";
 import { apiRequest } from "@/lib/queryClient";
 import { Checkbox } from "@/components/ui/checkbox";
 
-const equipmentOptions = [
+const equipmentOptions: Array<{
+  value: Exclude<Equipment, "bodyweight">;
+  label: string;
+}> = [
   { value: "dumbbell", label: "Dumbbells" },
   { value: "barbell", label: "Barbell" },
   { value: "bench", label: "Bench" },
@@ -58,7 +61,7 @@ export default function Onboarding() {
   const selectedEquipment = form.watch("equipment");
 
   const onSubmit = async (data: ProfileFormValues) => {
-    const equipment = data.equipment.includes("bodyweight")
+    const equipment: Equipment[] = data.equipment.includes("bodyweight")
       ? data.equipment
       : ["bodyweight", ...data.equipment];
     completeOnboarding({
@@ -178,7 +181,7 @@ export default function Onboarding() {
                   Bodyweight (always)
                 </label>
                 {equipmentOptions.map((option) => {
-                  const selected = selectedEquipment.includes(option.value as ProfileFormValues["equipment"][number]);
+                  const selected = selectedEquipment.includes(option.value);
                   return (
                     <label
                       key={option.value}
@@ -187,11 +190,11 @@ export default function Onboarding() {
                       <Checkbox
                         checked={selected}
                         onCheckedChange={(checked) => {
-                          const next = new Set(selectedEquipment);
+                          const next = new Set<Equipment>(selectedEquipment);
                           if (checked) {
-                            next.add(option.value as ProfileFormValues["equipment"][number]);
+                            next.add(option.value);
                           } else {
-                            next.delete(option.value as ProfileFormValues["equipment"][number]);
+                            next.delete(option.value);
                           }
                           form.setValue("equipment", Array.from(next));
                         }}

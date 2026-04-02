@@ -74,9 +74,19 @@ interface AppState {
 let activeUserKey = "anonymous";
 
 const buildStorageKey = (name: string) => `${name}:${activeUserKey}`;
+const buildStorageKeyForUser = (name: string, uid?: string | null) =>
+  `${name}:${uid ? uid : "anonymous"}`;
 
 export const setActiveUserId = (uid?: string | null) => {
   activeUserKey = uid ? uid : "anonymous";
+};
+
+export const hasPersistedUserState = (uid?: string | null) => {
+  if (typeof window === "undefined") return false;
+  return (
+    localStorage.getItem(buildStorageKeyForUser("iron-stride-storage", uid)) !==
+    null
+  );
 };
 
 const userStorage: StateStorage = {

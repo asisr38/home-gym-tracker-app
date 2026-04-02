@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useLocation, Link } from "wouter";
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { supabase } from "@/lib/supabase";
+import { getAuthErrorMessage } from "@/lib/auth-helpers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +14,7 @@ export default function Register() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [confirmationSent, setConfirmationSent] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,14 +27,44 @@ export default function Register() {
 
     setLoading(true);
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
+      if (!supabase) throw new Error("Authentication service unavailable.");
+      const { data, error: authError } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+      });
+      if (authError) throw authError;
+      // No session means email confirmation is required
+      if (!data.session) {
+        setConfirmationSent(true);
+        return;
+      }
       setLocation("/");
-    } catch (err: any) {
-      setError(err?.message || "Registration failed.");
+    } catch (err) {
+      setError(getAuthErrorMessage(err, "Registration failed."));
     } finally {
       setLoading(false);
     }
   };
+
+  if (confirmationSent) {
+    return (
+      <div className="min-h-screen app-shell p-6 flex items-center justify-center">
+        <Card className="w-full max-w-md border-border/60 shadow-2xl app-panel">
+          <CardHeader>
+            <CardTitle className="text-3xl font-bold tracking-tighter text-primary">Check your email</CardTitle>
+            <CardDescription>We sent a confirmation link to <strong>{email}</strong>. Click it to activate your account.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-sm text-center">
+              <Link href="/login" className="text-primary hover:underline">
+                Back to sign in
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen app-shell p-6 flex items-center justify-center">

@@ -3,17 +3,26 @@ import { MobileShell } from "@/components/layout/MobileShell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { RotateCcw, Download, Upload } from "lucide-react";
+import { RotateCcw, Download, Upload, LogOut, LogIn, UserPlus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { Switch } from "@/components/ui/switch";
 import { ToastAction } from "@/components/ui/toast";
+import { useLocation } from "wouter";
+import { useState } from "react";
 
 export default function Profile() {
   const { profile, exportData, importData, resetPlan, restorePlan } = useStore();
-  const { user } = useAuth();
+  const { user, signOutUser } = useAuth();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
+  const [signingOut, setSigningOut] = useState(false);
+  const isSignedOut = !user;
+  const accountLabel = user?.email || "Not signed in";
+  const cloudSyncDescription = user
+    ? "Your plan and history sync to your signed-in account."
+    : "Firebase auth is unavailable, so data stays on this device.";
   const goalLabelMap: Record<string, string> = {
     strength: "Strength",
     hypertrophy: "Muscle Gain",
@@ -62,6 +71,26 @@ export default function Profile() {
     });
   };
 
+  const handleSignOut = async () => {
+    setSigningOut(true);
+    try {
+      await signOutUser();
+      setLocation("/login");
+      toast({
+        title: "Signed out",
+        description: "Sign in again to access your training data.",
+      });
+    } catch {
+      toast({
+        title: "Sign out failed",
+        description: "Try again in a moment.",
+        variant: "destructive",
+      });
+    } finally {
+      setSigningOut(false);
+    }
+  };
+
   return (
     <MobileShell>
       <div className="p-6 space-y-6">
@@ -79,7 +108,7 @@ export default function Profile() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Account</p>
-                <p className="font-mono text-xs">{user?.email || "Unknown"}</p>
+                <p className="font-mono text-xs">{accountLabel}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Weight</p>
@@ -122,10 +151,29 @@ export default function Profile() {
             <div className="flex items-center justify-between rounded-lg border border-border/60 p-3">
               <div>
                 <p className="text-sm font-medium">Cloud Sync</p>
-                <p className="text-xs text-muted-foreground">Supabase ready (coming soon)</p>
+                <p className="text-xs text-muted-foreground">{cloudSyncDescription}</p>
               </div>
-              <Switch disabled />
+              <Switch checked={Boolean(user)} disabled />
             </div>
+            {isSignedOut ? (
+              <div className="grid grid-cols-2 gap-3">
+                <Button className="w-full justify-start" onClick={() => setLocation("/login")}>
+                  <LogIn className="mr-2 h-4 w-4" /> Sign In
+                </Button>
+                <Button variant="outline" className="w-full justify-start" onClick={() => setLocation("/register")}>
+                  <UserPlus className="mr-2 h-4 w-4" /> Create Account
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={handleSignOut}
+                disabled={signingOut}
+              >
+                <LogOut className="mr-2 h-4 w-4" /> {signingOut ? "Signing Out..." : "Sign Out"}
+              </Button>
+            )}
             <Button variant="outline" className="w-full justify-start" onClick={handleExport}>
               <Download className="mr-2 h-4 w-4" /> Export Data (JSON)
             </Button>

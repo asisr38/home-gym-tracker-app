@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { sendPasswordResetEmail } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { supabase } from "@/lib/supabase";
+import { getAuthErrorMessage } from "@/lib/auth-helpers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,10 +19,14 @@ export default function ForgotPassword() {
     setSent(false);
     setLoading(true);
     try {
-      await sendPasswordResetEmail(auth, email);
+      if (!supabase) throw new Error("Authentication service unavailable.");
+      const { error: authError } = await supabase.auth.resetPasswordForEmail(
+        email.trim(),
+      );
+      if (authError) throw authError;
       setSent(true);
-    } catch (err: any) {
-      setError(err?.message || "Unable to send reset email.");
+    } catch (err) {
+      setError(getAuthErrorMessage(err, "Unable to send reset email."));
     } finally {
       setLoading(false);
     }
