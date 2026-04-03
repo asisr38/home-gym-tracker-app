@@ -127,7 +127,11 @@ export default function Onboarding() {
       nutritionTarget: data.nutritionTarget ?? "",
     });
     const payload = getUserData();
-    apiRequest("POST", "/api/user-data", payload).catch(() => {});
+    try {
+      await apiRequest("POST", "/api/user-data", payload);
+    } catch {
+      // best-effort; local state is already saved, debounced sync will retry
+    }
     setLocation("/");
   };
 
@@ -230,12 +234,14 @@ export default function Onboarding() {
                   {EQUIPMENT_OPTIONS.map((opt) => {
                     const selected = selectedEquipment.includes(opt.value);
                     return (
-                      <button
+                      <div
                         key={opt.value}
-                        type="button"
+                        role="button"
+                        tabIndex={0}
                         onClick={() => toggleEquipment(opt.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleEquipment(opt.value); } }}
                         className={cn(
-                          "flex items-center gap-2 rounded-lg border px-3 py-2.5 text-left transition-all",
+                          "flex items-center gap-2 rounded-lg border px-3 py-2.5 text-left transition-all cursor-pointer",
                           selected
                             ? "border-primary bg-primary/10"
                             : "border-border/60 bg-muted/30 hover:border-primary/40"
@@ -243,7 +249,7 @@ export default function Onboarding() {
                       >
                         <Checkbox checked={selected} className="h-4 w-4 pointer-events-none" />
                         <span className="text-xs font-medium">{opt.label}</span>
-                      </button>
+                      </div>
                     );
                   })}
                 </div>
