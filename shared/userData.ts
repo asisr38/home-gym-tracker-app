@@ -79,12 +79,16 @@ export const workoutDaySchema = z.object({
   calvesStretched: z.boolean().optional(),
 });
 
+export const splitTypeSchema = z.enum(["upper_lower", "ppl", "ppl_6day", "full_body"]);
+export type SplitType = z.infer<typeof splitTypeSchema>;
+
 export const userProfileSchema = z.object({
   name: z.string(),
   height: z.number(),
   weight: z.number(),
   goal: z.string(),
   goalType: goalTypeSchema.default("balanced"),
+  splitType: splitTypeSchema.default("upper_lower"),
   units: unitSystemSchema,
   dailyRunTarget: z.number(),
   nutritionTarget: z.string(),

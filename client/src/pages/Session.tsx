@@ -1,11 +1,12 @@
 import { useParams, useLocation } from "wouter";
 import { useStore, ExerciseSet, type WorkoutDay } from "@/lib/store";
+import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent } from "@/components/ui/card";
 import { ArrowLeft, ChevronLeft, ChevronRight, Timer } from "lucide-react";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
@@ -82,6 +83,8 @@ export default function Session() {
   const [restRemaining, setRestRemaining] = useState<number | null>(null);
   const [restRunning, setRestRunning] = useState(false);
   const [restComplete, setRestComplete] = useState(false);
+  const notesHydratedRef = useRef(false);
+  const runDraftHydratedRef = useRef(false);
 
   useEffect(() => {
     setLogInputs({});
@@ -107,7 +110,36 @@ export default function Session() {
     } else {
       setRunTime("");
     }
+    notesHydratedRef.current = false;
+    runDraftHydratedRef.current = false;
   }, [resolvedDay?.id, isRunDay]);
+
+  useEffect(() => {
+    if (!resolvedDay || !notesHydratedRef.current) {
+      notesHydratedRef.current = true;
+      return;
+    }
+
+    updateWorkoutNotes(resolvedDay.id, notes);
+  }, [notes, resolvedDay?.id, updateWorkoutNotes]);
+
+  useEffect(() => {
+    if (!resolvedDay || !runDraftHydratedRef.current) {
+      runDraftHydratedRef.current = true;
+      return;
+    }
+
+    const distance =
+      runDistance.trim() === "" ? null : parseFloat(runDistance);
+    const timeMinutes =
+      runTime.trim() === "" ? null : parseFloat(runTime);
+
+    updateRunDraft(resolvedDay.id, {
+      distance: distance === null || Number.isNaN(distance) ? null : distance,
+      timeSeconds:
+        timeMinutes === null || Number.isNaN(timeMinutes) ? null : timeMinutes * 60,
+    });
+  }, [runDistance, runTime, resolvedDay?.id, updateRunDraft]);
 
   useEffect(() => {
     if (!restRunning || restRemaining === null) return;
@@ -273,8 +305,61 @@ export default function Session() {
         : undefined;
 
     completeWorkout(resolvedDay.id, notes, runData, calvesStretched);
-    const completedAt =
-      useStore.getState().currentPlan.find((entry) => entry.id === resolvedDay.id)?.dateCompleted;
+    const completedDay = useStore.getState().currentPlan.find((entry) => entry.id === resolvedDay.id);
+    const completedAt = completedDay?.dateCompleted;
+
+    // Best-effort: persist to normalized DB tables for unlimited history + analytics
+    if (resolvedDay.type === "lift") {
+      const exercises = resolvedDay.exercises.map((ex) => {
+        const completedSetsData = ex.sets.filter((s) => s.completed);
+        const weights = completedSetsData.map((s) => s.weight ?? 0).filter((w) => w > 0);
+        const totalVolume = completedSetsData.reduce(
+          (sum, s) => sum + (s.weight ?? 0) * (s.actualReps ?? 0), 0
+        );
+        return {
+          exerciseName: ex.name,
+          muscleGroup: ex.muscleGroup,
+          setsCompleted: completedSetsData.length,
+          setsTotal: ex.sets.length,
+          maxWeight: weights.length ? Math.max(...weights) : null,
+          totalVolume,
+        };
+      });
+      const allSets = resolvedDay.exercises.flatMap((ex) => ex.sets);
+      const completedSetsCount = allSets.filter((s) => s.completed).length;
+      const totalVolumeAll = resolvedDay.exercises.reduce(
+        (sum, ex) => sum + ex.sets.filter((s) => s.completed).reduce(
+          (s2, s) => s2 + (s.weight ?? 0) * (s.actualReps ?? 0), 0
+        ), 0
+      );
+      apiRequest("POST", "/api/workouts", {
+        dayId: resolvedDay.id,
+        title: resolvedDay.title,
+        dayType: resolvedDay.dayType,
+        workoutType: resolvedDay.type,
+        completedAt: completedAt ?? new Date().toISOString(),
+        notes: notes || undefined,
+        totalVolume: totalVolumeAll,
+        totalSets: allSets.length,
+        completedSets: completedSetsCount,
+        exercises,
+      }).catch(() => {});
+    } else if (runData) {
+      apiRequest("POST", "/api/workouts", {
+        dayId: resolvedDay.id,
+        title: resolvedDay.title,
+        dayType: resolvedDay.dayType,
+        workoutType: resolvedDay.type,
+        completedAt: completedAt ?? new Date().toISOString(),
+        notes: notes || undefined,
+        totalVolume: 0,
+        totalSets: 0,
+        completedSets: 0,
+        runDistance: runData.distance,
+        runTimeSeconds: runData.timeSeconds,
+        exercises: [],
+      }).catch(() => {})
+    }
     toast({
       title: "Workout completed",
       description:
@@ -653,14 +738,7 @@ export default function Session() {
                       type="number" 
                       placeholder={resolvedDay.runTarget?.distance.toString() || profile.dailyRunTarget.toString()}
                       value={runDistance}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        setRunDistance(value);
-                        const parsed = value.trim() === "" ? null : parseFloat(value);
-                        updateRunDraft(resolvedDay.id, {
-                          distance: parsed === null || Number.isNaN(parsed) ? null : parsed,
-                        });
-                      }}
+                      onChange={(e) => setRunDistance(e.target.value)}
                       className="text-lg font-mono"
                     />
                   </div>
@@ -670,15 +748,7 @@ export default function Session() {
                       type="number" 
                       placeholder="30"
                       value={runTime}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        setRunTime(value);
-                        const parsed = value.trim() === "" ? null : parseFloat(value);
-                        updateRunDraft(resolvedDay.id, {
-                          timeSeconds:
-                            parsed === null || Number.isNaN(parsed) ? null : parsed * 60,
-                        });
-                      }}
+                      onChange={(e) => setRunTime(e.target.value)}
                       className="text-lg font-mono"
                     />
                   </div>
@@ -707,10 +777,7 @@ export default function Session() {
           <Textarea 
             placeholder="How did it feel? Any pain? RPE?"
             value={notes}
-            onChange={(e) => {
-              setNotes(e.target.value);
-              updateWorkoutNotes(resolvedDay.id, e.target.value);
-            }}
+            onChange={(e) => setNotes(e.target.value)}
             className="min-h-[100px]"
           />
         </div>

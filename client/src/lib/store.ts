@@ -14,8 +14,9 @@ import {
   type DayType,
   type GoalType,
   type Equipment,
+  type SplitType,
 } from "@shared/userData";
-import { buildUpperLowerPlan } from "@/lib/upperLowerPlan";
+import { buildPlan as buildPlanFromBuilder } from "@/lib/planBuilder";
 
 export type {
   UnitSystem,
@@ -27,6 +28,7 @@ export type {
   UserProfile,
   GoalType,
   Equipment,
+  SplitType,
 } from "@shared/userData";
 
 export type LoggedSet = {
@@ -261,7 +263,12 @@ const buildDay = (
 
 const roundDistance = (value: number) => Math.round(value * 10) / 10;
 
-const buildPlan = (_profile: UserProfile): WorkoutDay[] => buildUpperLowerPlan();
+const buildPlan = (profile: UserProfile): WorkoutDay[] =>
+  buildPlanFromBuilder(
+    profile.splitType ?? "upper_lower",
+    profile.goalType ?? "balanced",
+    profile.equipment ?? ["bodyweight"],
+  );
 
 const DEFAULT_PROFILE: UserProfile = {
   name: "",
@@ -269,6 +276,7 @@ const DEFAULT_PROFILE: UserProfile = {
   weight: 0,
   goal: "Build Muscle & Endurance",
   goalType: "balanced",
+  splitType: "upper_lower",
   units: "imperial",
   dailyRunTarget: 2,
   nutritionTarget: "",
@@ -280,6 +288,7 @@ const DEFAULT_PROFILE: UserProfile = {
 const normalizeProfile = (profile: UserProfile): UserProfile => ({
   ...profile,
   goalType: profile.goalType || inferGoalType(profile.goal),
+  splitType: profile.splitType ?? "upper_lower",
   equipment: ensureEquipment(profile.equipment),
 });
 
@@ -462,28 +471,48 @@ export const useStore = create<AppState>()(
       }),
 
       updateWorkoutNotes: (dayId, notes) =>
-        set((state) => ({
-          currentPlan: state.currentPlan.map((day) =>
-            day.id === dayId ? { ...day, notes } : day,
-          ),
-        })),
+        set((state) => {
+          let changed = false;
+          const currentPlan = state.currentPlan.map((day) => {
+            if (day.id !== dayId || day.notes === notes) return day;
+            changed = true;
+            return { ...day, notes };
+          });
+
+          return changed ? { currentPlan } : state;
+        }),
 
       updateRunDraft: (dayId, runData) =>
-        set((state) => ({
-          currentPlan: state.currentPlan.map((day) => {
+        set((state) => {
+          let changed = false;
+          const currentPlan = state.currentPlan.map((day) => {
             if (day.id !== dayId) return day;
+
             const nextDistance =
               runData.distance !== undefined ? runData.distance ?? 0 : day.runActual?.distance;
             const nextTime =
               runData.timeSeconds !== undefined ? runData.timeSeconds ?? 0 : day.runActual?.timeSeconds;
-            const hasData =
-              (nextDistance ?? 0) > 0 || (nextTime ?? 0) > 0;
+            const hasData = (nextDistance ?? 0) > 0 || (nextTime ?? 0) > 0;
+            const nextRunActual = hasData
+              ? { distance: nextDistance ?? 0, timeSeconds: nextTime ?? 0 }
+              : undefined;
+
+            if (
+              day.runActual?.distance === nextRunActual?.distance &&
+              day.runActual?.timeSeconds === nextRunActual?.timeSeconds
+            ) {
+              return day;
+            }
+
+            changed = true;
             return {
               ...day,
-              runActual: hasData ? { distance: nextDistance ?? 0, timeSeconds: nextTime ?? 0 } : undefined,
+              runActual: nextRunActual,
             };
-          }),
-        })),
+          });
+
+          return changed ? { currentPlan } : state;
+        }),
 
       updateExerciseNotes: (dayId, exerciseId, notes) =>
         set((state) => ({
