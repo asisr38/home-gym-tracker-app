@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation, Link } from "wouter";
+import { Link } from "@/lib/router";
 import { supabase } from "@/lib/supabase";
 import { getAuthErrorMessage } from "@/lib/auth-helpers";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,6 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
 export default function Login() {
-  const [, setLocation] = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -34,7 +33,6 @@ export default function Login() {
         throw authError;
       }
       console.log("[IronStride:login] success", { userId: data.user?.id });
-      setLocation("/");
     } catch (err) {
       console.error("[IronStride:login] caught error", err);
       setError(getAuthErrorMessage(err, "Login failed."));

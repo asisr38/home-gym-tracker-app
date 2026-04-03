@@ -1,28 +1,20 @@
 import { readdir, readFile, stat, writeFile } from "fs/promises";
 import path from "path";
 
-type RouteEntry = {
-  path: string;
-  kind: "component" | "redirect";
-  target: string;
-};
-
 const root = process.cwd();
 const outputPath = path.join(root, "SYSTEM_CONTEXT.md");
 const notesPath = path.join(root, "docs/context-notes.md");
-const appPath = path.join(root, "client/src/App.tsx");
 const storePath = path.join(root, "client/src/lib/store.ts");
-const serverRoutesPath = path.join(root, "server/routes.ts");
-const vercelUserDataPath = path.join(root, "api/user-data.ts");
 const upperLowerPlanPath = path.join(root, "client/src/lib/upperLowerPlan.ts");
 const userDataPath = path.join(root, "shared/userData.ts");
 const packagePath = path.join(root, "package.json");
 const readmePath = path.join(root, "README.md");
 const watchTargets = [
+  "app",
   "client/src",
   "server",
   "shared",
-  "api",
+  "next.config.ts",
   "script/update-context.ts",
   "docs/context-notes.md",
   "package.json",
@@ -31,18 +23,15 @@ const watchTargets = [
 
 const keyPackages = [
   "react",
-  "vite",
+  "next",
   "typescript",
   "zustand",
   "@tanstack/react-query",
-  "wouter",
   "@supabase/supabase-js",
-  "express",
   "zod",
   "tailwindcss",
   "@radix-ui/react-dialog",
   "framer-motion",
-  "@vercel/node",
 ];
 
 async function readText(filePath: string) {
@@ -60,52 +49,19 @@ function shiftMarkdownHeadings(source: string, amount: number) {
   });
 }
 
-function extractRoutes(source: string) {
-  const routes: RouteEntry[] = [];
+function extractNextRouteMethods(routePath: string, source: string) {
+  const normalized = routePath
+    .replace(/^app/, "")
+    .replace(/\/route\.ts$/, "")
+    .replace(/\(.*?\)\//g, "")
+    .replace(/\/page$/, "")
+    || "/";
 
-  for (const match of source.matchAll(
-    /<Route path="([^"]+)" component=\{([A-Za-z0-9_]+)\} \/>/g,
-  )) {
-    routes.push({
-      path: match[1],
-      kind: "component",
-      target: match[2],
-    });
-  }
-
-  for (const match of source.matchAll(
-    /<Route path="([^"]+)">\{\(\) => <Redirect to="([^"]+)" \/>\}<\/Route>/g,
-  )) {
-    routes.push({
-      path: match[1],
-      kind: "redirect",
-      target: match[2],
-    });
-  }
-
-  if (source.includes('<Route>{() => <Redirect to="/" />}</Route>')) {
-    routes.push({
-      path: "*",
-      kind: "redirect",
-      target: "/",
-    });
-  }
-
-  return routes;
-}
-
-function extractServerRoutes(source: string) {
-  return [...source.matchAll(/app\.(get|post|put|patch|delete)\("([^"]+)"/g)].map(
-    (match) => `${match[1].toUpperCase()} ${match[2]}`,
+  const methods = [...source.matchAll(/export async function (GET|POST|PUT|PATCH|DELETE)\(/g)].map(
+    (match) => `${match[1]} ${normalized}`,
   );
-}
 
-function extractVercelMethods(source: string) {
-  return unique(
-    [...source.matchAll(/req\.method === "([A-Z]+)"/g)].map(
-      (match) => `${match[1]} /api/user-data`,
-    ),
-  );
+  return unique(methods);
 }
 
 function extractStoreActions(source: string) {
@@ -157,19 +113,44 @@ async function listPageFiles() {
   return files.filter((file) => file.endsWith(".tsx")).sort();
 }
 
+async function listFilesRecursive(targetDir: string, predicate: (relativePath: string) => boolean) {
+  const absoluteDir = path.join(root, targetDir);
+  const files: string[] = [];
+
+  async function visit(relativeDir: string) {
+    const absolutePath = path.join(root, relativeDir);
+    const entries = await readdir(absolutePath, { withFileTypes: true });
+
+    for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+      const relativePath = path.join(relativeDir, entry.name);
+      if (entry.isDirectory()) {
+        await visit(relativePath);
+      } else if (predicate(relativePath)) {
+        files.push(relativePath);
+      }
+    }
+  }
+
+  try {
+    await stat(absoluteDir);
+    await visit(targetDir);
+  } catch {
+    return [];
+  }
+
+  return files.sort();
+}
+
 function renderSection(title: string, lines: string[]) {
   return [`## ${title}`, "", ...lines, ""].join("\n");
 }
 
 async function buildContext() {
-  const [packageText, notes, appSource, storeSource, serverRoutesSource, vercelSource, planSource, userDataSource, readme] =
+  const [packageText, notes, storeSource, planSource, userDataSource, readme] =
     await Promise.all([
       readText(packagePath),
       readText(notesPath),
-      readText(appPath),
       readText(storePath),
-      readText(serverRoutesPath),
-      readText(vercelUserDataPath),
       readText(upperLowerPlanPath),
       readText(userDataPath),
       readText(readmePath),
@@ -181,15 +162,21 @@ async function buildContext() {
     devDependencies?: Record<string, string>;
   };
   const pageFiles = await listPageFiles();
-  const routes = extractRoutes(appSource);
-  const serverRoutes = extractServerRoutes(serverRoutesSource);
-  const vercelMethods = extractVercelMethods(vercelSource);
+  const nextRouteFiles = await listFilesRecursive("app/api", (relativePath) =>
+    relativePath.endsWith("route.ts"),
+  );
+  const nextRouteMethods = unique(
+    (
+      await Promise.all(
+        nextRouteFiles.map(async (routeFile) =>
+          extractNextRouteMethods(routeFile, await readText(path.join(root, routeFile))),
+        ),
+      )
+    ).flat(),
+  );
   const storeActions = extractStoreActions(storeSource);
   const envVars = unique([
-    ...extractEnvVars(serverRoutesSource),
-    ...extractEnvVars(vercelSource),
     ...extractEnvVars(await readText(path.join(root, "server/supabase.ts"))),
-    ...extractEnvVars(await readText(path.join(root, "server/index.ts"))),
   ]).sort();
   const planSummary = extractPlanSummary(planSource);
   const schemaTypes = extractTopLevelSchemaTypes(userDataSource);
@@ -216,15 +203,7 @@ async function buildContext() {
       ([name, command]) => `- \`${name}\`: \`${command}\``,
     )),
     renderSection("Key Stack", dependencyVersions.map((entry) => `- \`${entry}\``)),
-    renderSection("Client Routes", routes.map((route) =>
-      route.kind === "component"
-        ? `- \`${route.path}\` -> component \`${route.target}\``
-        : `- \`${route.path}\` -> redirect \`${route.target}\``,
-    )),
-    renderSection("API Surface", [
-      ...serverRoutes.map((entry) => `- Express: \`${entry}\``),
-      ...vercelMethods.map((entry) => `- Vercel: \`${entry}\``),
-    ]),
+    renderSection("API Surface", nextRouteMethods.map((entry) => `- \`${entry}\``)),
     renderSection("Plan Template", [
       `- Plan name: \`${planSummary.planName}\``,
       `- Weekly frequency: \`${planSummary.frequency}\` training days`,
@@ -234,14 +213,14 @@ async function buildContext() {
     renderSection("Store Actions", storeActions.map((entry) => `- \`${entry}\``)),
     renderSection("Shared Schema Types", schemaTypes.map((entry) => `- \`${entry}\``)),
     renderSection("Key Files", [
-      "- `client/src/App.tsx`: top-level routes and providers",
+      "- `app/`: Next.js App Router pages and layouts",
+      "- `app/api/*/route.ts`: Next.js API route handlers",
       "- `client/src/lib/store.ts`: persisted app state and action surface",
       "- `client/src/hooks/use-user-data-sync.ts`: local/cloud sync contract",
       "- `client/src/lib/upperLowerPlan.ts`: default weekly plan template",
       "- `client/src/lib/workout.ts`: Today/weekly scheduling helpers",
       "- `shared/userData.ts`: persisted data schema",
-      "- `server/routes.ts`: Express API routes",
-      "- `api/user-data.ts`: Vercel serverless API parity for user data",
+      "- `server/api-core.ts`: shared API business logic and Supabase helpers",
       "- `server/supabase.ts`: Supabase admin client and required env vars",
     ]),
     renderSection("Pages", pageFiles.map((entry) => `- \`client/src/pages/${entry}\``)),
@@ -256,14 +235,11 @@ async function buildContext() {
       "- `docs/context-notes.md`",
       "- `package.json`",
       "- `README.md`",
-      "- `client/src/App.tsx`",
       "- `client/src/lib/store.ts`",
       "- `client/src/lib/upperLowerPlan.ts`",
       "- `shared/userData.ts`",
-      "- `server/routes.ts`",
-      "- `api/user-data.ts`",
+      "- `app/api/*/route.ts`",
       "- `server/supabase.ts`",
-      "- `server/index.ts`",
     ]),
   ].join("\n");
 

@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { Switch } from "@/components/ui/switch";
 import { ToastAction } from "@/components/ui/toast";
-import { useLocation } from "wouter";
+import { useLocation } from "@/lib/router";
 import { useState } from "react";
 
 export default function Profile() {

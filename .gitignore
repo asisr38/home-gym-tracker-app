@@ -1,4 +1,6 @@
 node_modules
+.next
+.pnpm-store
 dist
 package-lock.json
 yarn.lock

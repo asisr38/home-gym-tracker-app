@@ -7,15 +7,20 @@
 # Architecture Notes
 
 - Client stack: React 19, Vite 7, TypeScript, Wouter, Zustand, React Query, Tailwind 4, Radix UI.
+- The Next.js migration is still additive: the existing Vite SPA and Express server remain available, while the parallel App Router shell lives under `app/`.
 - State is local-first in Zustand with per-user localStorage keys. Cloud sync is best-effort and only covers `profile`, `history`, and `currentPlan`.
 - Auth uses Supabase email/password sign-in. Unauthenticated users are redirected to `/login`, and signed-in users must complete `/onboarding` before the main app routes unlock.
 - Cloud sync uses a single API backend at `/api/user-data` with a 1-second debounce. Supabase access token is sent as a Bearer token.
 - `/login`, `/register`, and `/forgot-password` are guest-only routes.
-- Supabase client config requires `VITE_SUPABASE_URL` and either `VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY` or legacy `VITE_SUPABASE_ANON_KEY`. Server-side requires `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`.
+- Supabase client config now accepts either Vite envs (`VITE_SUPABASE_URL` plus `VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY` or `VITE_SUPABASE_ANON_KEY`) or Next public envs (`NEXT_PUBLIC_SUPABASE_URL` plus `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY` or `NEXT_PUBLIC_SUPABASE_ANON_KEY`). Server-side requires `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`.
+- In the shared browser Supabase client, Next public vars must be read through direct `process.env.NEXT_PUBLIC_*` references. Aliasing `process.env` prevents Next from inlining those values into the client bundle and makes auth initialize as unavailable.
 - Local development reads both client and server credentials from the repo-root `.env`: Vite uses the repo root as `envDir`, and the Node server eagerly loads the same file before resolving Supabase config.
 - Missing Supabase credentials do not block app startup; the server stays up in local-only mode and `/api/user-data` returns `503` until credentials are configured.
 - In local development, when `PORT` is unset and the default `5000` is busy, the Express/Vite server auto-increments to the next free port instead of crashing. Explicit `PORT` values still fail fast.
 - There are two server surfaces for the same persistence contract: Express routes in `server/routes.ts` and a Vercel handler in `api/user-data.ts`.
+- The Next shell now has native App Router handlers for `/api/user-data`, `/api/workouts`, `/api/workouts/history`, `/api/workouts/stats`, and `/api/body-metrics`. These handlers share the same server-side auth and persistence logic as the legacy Express routes through `server/api-core.ts`.
+- `next:dev` now runs Next directly; it no longer boots the Express API as a proxy dependency.
+- The default lifecycle scripts now target Next (`dev`, `build`, `start`). The old Vite/Express flow is still available as `legacy:dev`, `legacy:build`, and `legacy:start` during migration cleanup.
 - Shared source of truth for persisted data lives in `shared/userData.ts`. Store exports `schemaVersion: 2` through `getUserData()`.
 - Completed workout history is intentionally pruned to the latest 30 days on both client and server.
 - User data is stored in Supabase Postgres as a `jsonb` blob in the `user_data` table, keyed by `user_id`. Row Level Security enforces `auth.uid() = user_id`.
@@ -31,6 +36,7 @@
 
 - Plan generation ignores profile goal and equipment today. The UI says the schedule is tailored, but `buildPlan()` always returns the same upper/lower template.
 - Supabase email/password auth must be enabled in the Supabase dashboard for the login/register flow to work.
+- This sandbox cannot safely mutate pnpm dependencies because of a store-path mismatch. If `build` or `dev` fails on missing packages after a package.json change, run `pnpm install` locally to refresh `node_modules`.
 
 # Maintenance Rule
 

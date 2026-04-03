@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useLocation, useParams } from "wouter";
+import { useLocation, useParams } from "@/lib/router";
 import {
   ArrowLeft,
   CheckCircle2,

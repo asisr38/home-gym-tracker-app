@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "wouter";
+import { Link } from "@/lib/router";
 import { supabase } from "@/lib/supabase";
 import { getAuthErrorMessage } from "@/lib/auth-helpers";
 import { Button } from "@/components/ui/button";

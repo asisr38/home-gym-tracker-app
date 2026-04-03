@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Play, Calendar, Trophy, ChevronRight, Flame, BarChart3 } from "lucide-react";
-import { useLocation } from "wouter";
+import { useLocation } from "@/lib/router";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { estimateDayMinutes, getScheduledWorkoutForDate, getWeeklyStats } from "@/lib/workout";

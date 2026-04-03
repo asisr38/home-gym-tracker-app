@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation, Link } from "wouter";
+import { Link } from "@/lib/router";
 import { supabase } from "@/lib/supabase";
 import { getAuthErrorMessage } from "@/lib/auth-helpers";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,6 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
 export default function Register() {
-  const [, setLocation] = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -50,7 +49,6 @@ export default function Register() {
         setConfirmationSent(true);
         return;
       }
-      setLocation("/");
     } catch (err) {
       console.error("[IronStride:register] caught error", err);
       setError(getAuthErrorMessage(err, "Registration failed."));

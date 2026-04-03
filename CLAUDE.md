@@ -10,15 +10,14 @@ Before any task, read `SYSTEM_CONTEXT.md` — it is the auto-generated architect
 
 ```bash
 # Development
-pnpm dev              # Full-stack dev server (Express + Vite, port 5000)
-pnpm dev:client       # Client-only Vite dev server
+pnpm dev              # Next.js dev server (port 3000)
 
 # Type checking
 pnpm check            # TypeScript type check (no emit)
 
 # Build & production
-pnpm build            # Compile client (Vite → dist/public/) + server (esbuild → dist/index.cjs)
-pnpm start            # Run production server from dist/index.cjs
+pnpm build            # Next.js production build
+pnpm start            # Run production Next.js server
 
 # Context management
 pnpm context:update   # Regenerate SYSTEM_CONTEXT.md from source
@@ -29,17 +28,22 @@ There are no automated tests in this repository.
 
 ## Architecture
 
-**Full-stack TypeScript monorepo**: React 19 + Vite 7 client, Express backend, Supabase auth + Postgres storage, Zustand local-first state.
+**Full-stack TypeScript monorepo**: React 19 + Next.js 15 (App Router), Supabase auth + Postgres storage, Zustand local-first state.
 
 ### Data flow
 
-State lives in Zustand with per-user `localStorage` keys as the source of truth. Cloud sync is **best-effort only** and covers `profile`, `history`, and `currentPlan`. The client syncs to `/api/user-data` (Express or Vercel handler) using a 1-second debounce.
+State lives in Zustand with per-user `localStorage` keys as the source of truth. Cloud sync is **best-effort only** and covers `profile`, `history`, and `currentPlan`. The client syncs to `/api/user-data` (Next.js API route) using a 1-second debounce.
 
-The shared data contract is in `shared/userData.ts` (Zod schemas, `schemaVersion: 2`). Both `server/routes.ts` and `api/user-data.ts` implement the same persistence contract — keep them in sync.
+The shared data contract is in `shared/userData.ts` (Zod schemas, `schemaVersion: 2`). The Next.js API route `app/api/user-data/route.ts` implements the persistence contract.
 
 ### Auth & routing
 
-Supabase email/password auth. Unauthenticated users → `/login`. Authenticated users without completed onboarding → `/onboarding`. `/login`, `/register`, `/forgot-password` are guest-only.
+Supabase email/password auth. Next.js App Router with route groups:
+- `app/(public)/` — guest-only routes (login, register, forgot-password)
+- `app/(protected)/` — requires auth + completed onboarding
+- `app/(onboarding)/` — requires auth, allows incomplete onboarding
+
+Route access is enforced by `RouteGate` (`client/src/components/next/RouteGate.tsx`) in each group's layout.
 
 ### Workout model
 
@@ -52,11 +56,11 @@ Key invariants:
 
 ### Supabase configuration
 
-**Client** (Vite env vars): `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY`
+**Client** (Next.js env vars): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY`
 
 **Server**: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
 
-Missing credentials don't block startup — the server runs in local-only mode and `/api/user-data` returns `503`.
+Missing credentials don't block startup — API routes return `503` when unconfigured.
 
 Required Supabase table:
 ```sql
@@ -72,4 +76,4 @@ create policy "Users can manage own data" on user_data
 
 ### Path aliases
 
-`@/*` → `client/src/*`, `@shared/*` → `shared/*`
+`@/*` → `client/src/*`, `@server/*` → `server/*`, `@shared/*` → `shared/*`

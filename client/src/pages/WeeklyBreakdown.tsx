@@ -4,7 +4,7 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { useStore } from "@/lib/store";
 import { estimateDayMinutes, getCompletedSetsForDay, getPlannedSetsForDay, getWeeklyStats } from "@/lib/workout";
-import { useLocation } from "wouter";
+import { useLocation } from "@/lib/router";
 
 export default function WeeklyBreakdown() {
   const { currentPlan, profile } = useStore();

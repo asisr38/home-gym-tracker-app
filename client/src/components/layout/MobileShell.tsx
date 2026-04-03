@@ -1,4 +1,4 @@
-import { Link, useLocation } from "wouter";
+import { Link, useLocation } from "@/lib/router";
 import { Home, BarChart3, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 

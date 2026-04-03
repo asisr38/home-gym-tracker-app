@@ -1,4 +1,4 @@
-import { useParams, useLocation } from "wouter";
+import { useParams, useLocation } from "@/lib/router";
 import { useStore, ExerciseSet, type WorkoutDay } from "@/lib/store";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
