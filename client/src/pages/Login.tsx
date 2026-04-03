@@ -18,15 +18,25 @@ export default function Login() {
     e.preventDefault();
     setError(null);
     setLoading(true);
+    console.log("[IronStride:login] submit", { email: email.trim(), supabaseReady: Boolean(supabase) });
     try {
       if (!supabase) throw new Error("Authentication service unavailable.");
-      const { error: authError } = await supabase.auth.signInWithPassword({
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
       });
-      if (authError) throw authError;
+      if (authError) {
+        console.error("[IronStride:login] auth error", {
+          message: authError.message,
+          status: authError.status,
+          code: (authError as any).code,
+        });
+        throw authError;
+      }
+      console.log("[IronStride:login] success", { userId: data.user?.id });
       setLocation("/");
     } catch (err) {
+      console.error("[IronStride:login] caught error", err);
       setError(getAuthErrorMessage(err, "Login failed."));
     } finally {
       setLoading(false);

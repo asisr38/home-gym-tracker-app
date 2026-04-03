@@ -18,14 +18,24 @@ export default function ForgotPassword() {
     setError(null);
     setSent(false);
     setLoading(true);
+    console.log("[IronStride:forgot-password] submit", { email: email.trim(), supabaseReady: Boolean(supabase) });
     try {
       if (!supabase) throw new Error("Authentication service unavailable.");
       const { error: authError } = await supabase.auth.resetPasswordForEmail(
         email.trim(),
       );
-      if (authError) throw authError;
+      if (authError) {
+        console.error("[IronStride:forgot-password] auth error", {
+          message: authError.message,
+          status: authError.status,
+          code: (authError as any).code,
+        });
+        throw authError;
+      }
+      console.log("[IronStride:forgot-password] reset email sent");
       setSent(true);
     } catch (err) {
+      console.error("[IronStride:forgot-password] caught error", err);
       setError(getAuthErrorMessage(err, "Unable to send reset email."));
     } finally {
       setLoading(false);

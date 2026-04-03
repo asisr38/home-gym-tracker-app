@@ -26,20 +26,33 @@ export default function Register() {
     }
 
     setLoading(true);
+    console.log("[IronStride:register] submit", { email: email.trim(), supabaseReady: Boolean(supabase) });
     try {
       if (!supabase) throw new Error("Authentication service unavailable.");
       const { data, error: authError } = await supabase.auth.signUp({
         email: email.trim(),
         password,
       });
-      if (authError) throw authError;
-      // No session means email confirmation is required
+      if (authError) {
+        console.error("[IronStride:register] auth error", {
+          message: authError.message,
+          status: authError.status,
+          code: (authError as any).code,
+        });
+        throw authError;
+      }
+      console.log("[IronStride:register] success", {
+        userId: data.user?.id,
+        hasSession: Boolean(data.session),
+        emailConfirmRequired: !data.session,
+      });
       if (!data.session) {
         setConfirmationSent(true);
         return;
       }
       setLocation("/");
     } catch (err) {
+      console.error("[IronStride:register] caught error", err);
       setError(getAuthErrorMessage(err, "Registration failed."));
     } finally {
       setLoading(false);

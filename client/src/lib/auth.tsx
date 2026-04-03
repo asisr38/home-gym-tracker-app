@@ -16,16 +16,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!supabase) {
+      console.warn("[IronStride:auth] supabase is null — skipping session load");
       setLoading(false);
       return;
     }
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    console.log("[IronStride:auth] loading initial session...");
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        console.error("[IronStride:auth] getSession error", error.message, error);
+      } else {
+        console.log("[IronStride:auth] session loaded", { hasUser: Boolean(session?.user), userId: session?.user?.id ?? null });
+      }
       setUser(session?.user ?? null);
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log("[IronStride:auth] state change", { event, userId: session?.user?.id ?? null });
       setUser(session?.user ?? null);
     });
 
