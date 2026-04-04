@@ -80,7 +80,10 @@ async function saveUserDataToApi(data: UserData) {
 }
 
 export function useUserDataSync(user: User | null) {
-  const [ready, setReady] = useState(false);
+  // Track which user ID the sync last completed for.
+  // ready is derived: true only when the sync finished for the *current* user.
+  const [readyUserId, setReadyUserId] = useState<string | null | undefined>(undefined);
+  const ready = readyUserId !== undefined && readyUserId === (user?.id ?? null);
   const [syncEnabled, setSyncEnabled] = useState(false);
   const bootstrappingRef = useRef(false);
   const applyingRemoteRef = useRef(false);
@@ -99,11 +102,10 @@ export function useUserDataSync(user: User | null) {
         setSyncEnabled(false);
         setActiveUserId(null);
         await rehydrateStore();
-        if (!cancelled) setReady(true);
+        if (!cancelled) setReadyUserId(null);
         return;
       }
 
-      setReady(false);
       setSyncEnabled(false);
       const hasLocalUserState = hasPersistedUserState(user.id);
       setActiveUserId(user.id);
@@ -143,7 +145,7 @@ export function useUserDataSync(user: User | null) {
         bootstrappingRef.current = false;
       }
 
-      if (!cancelled) setReady(true);
+      if (!cancelled) setReadyUserId(user.id);
     };
 
     sync().catch((error) => {
@@ -155,7 +157,7 @@ export function useUserDataSync(user: User | null) {
       }
 
       setSyncEnabled(false);
-      if (!cancelled) setReady(true);
+      if (!cancelled) setReadyUserId(user?.id ?? null);
     });
 
     return () => {
