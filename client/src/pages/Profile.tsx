@@ -1,9 +1,19 @@
 import { useStore } from "@/lib/store";
 import { MobileShell } from "@/components/layout/MobileShell";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { RotateCcw, Download, Upload, LogOut, LogIn, UserPlus } from "lucide-react";
+import {
+  RotateCcw,
+  Download,
+  Upload,
+  LogOut,
+  LogIn,
+  UserPlus,
+  Cloud,
+  ShieldCheck,
+  Weight,
+  Target,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
@@ -11,6 +21,7 @@ import { Switch } from "@/components/ui/switch";
 import { ToastAction } from "@/components/ui/toast";
 import { useLocation } from "@/lib/router";
 import { useState } from "react";
+import { MetricPill, PageHeader, SectionHeading, SurfaceCard } from "@/components/ui/app-surfaces";
 
 export default function Profile() {
   const { profile, exportData, importData, resetPlan, restorePlan } = useStore();
@@ -22,7 +33,7 @@ export default function Profile() {
   const accountLabel = user?.email || "Not signed in";
   const cloudSyncDescription = user
     ? "Your plan and history sync to your signed-in account."
-    : "Firebase auth is unavailable, so data stays on this device.";
+    : "You're using local-first storage only. Sign in to sync across devices.";
   const goalLabelMap: Record<string, string> = {
     strength: "Strength",
     hypertrophy: "Muscle Gain",
@@ -93,62 +104,72 @@ export default function Profile() {
 
   return (
     <MobileShell>
-      <div className="p-6 space-y-6">
-        <h1 className="text-2xl font-semibold">Settings</h1>
+      <div className="space-y-6 p-5">
+        <PageHeader
+          eyebrow="Settings"
+          title="Profile, Account, Data"
+          description="Your training identity, sync status, and recovery actions all live here."
+          action={<MetricPill icon={Cloud} tone={user ? "emerald" : "default"}>{user ? "Sync on" : "Local only"}</MetricPill>}
+        />
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Profile</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+        <SurfaceCard tone="primary" className="p-5">
+          <div className="space-y-4">
+            <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-sm text-muted-foreground">Name</p>
-                <p className="font-mono text-lg">{profile.name}</p>
+                <p className="text-eyebrow">Profile Snapshot</p>
+                <h2 className="text-2xl font-semibold tracking-[-0.04em]">{profile.name}</h2>
+                <p className="mt-1 text-sm text-muted-foreground">{accountLabel}</p>
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Account</p>
-                <p className="font-mono text-xs">{accountLabel}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Weight</p>
-                <p className="font-mono text-lg">{profile.weight} {profile.units === 'imperial' ? 'lbs' : 'kg'}</p>
-              </div>
-              <div className="col-span-2">
-                <p className="text-sm text-muted-foreground">Goal</p>
-                <p className="font-medium">{profile.goal}</p>
-              </div>
-              <div className="col-span-2">
-                <p className="text-sm text-muted-foreground">Goal Focus</p>
-                <p className="font-medium">{goalLabelMap[profile.goalType]}</p>
-              </div>
-              <div className="col-span-2">
-                <p className="text-sm text-muted-foreground">Equipment</p>
-                <div className="flex flex-wrap gap-2">
-                  {profile.equipment.map((item) => (
-                    <span
-                      key={item}
-                      className="rounded-full border border-border/60 bg-muted/60 px-2 py-1 text-[10px] uppercase tracking-wide text-muted-foreground"
-                    >
-                      {item.replace("_", " ")}
-                    </span>
-                  ))}
-                </div>
-              </div>
-              <div className="col-span-2">
-                <p className="text-sm text-muted-foreground">Nutrition</p>
-                <p className="font-mono text-sm bg-muted p-2 rounded">{profile.nutritionTarget || 'Not set'}</p>
+              <div className="rounded-[1.1rem] border border-white/10 bg-background/40 px-3 py-2 text-right">
+                <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Goal</div>
+                <div className="text-sm font-semibold">{goalLabelMap[profile.goalType]}</div>
               </div>
             </div>
-          </CardContent>
-        </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Account & Data</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between rounded-lg border border-border/60 p-3">
+            <div className="flex flex-wrap gap-2">
+              <MetricPill icon={Weight}>
+                {profile.weight} {profile.units === "imperial" ? "lbs" : "kg"}
+              </MetricPill>
+              <MetricPill icon={Target} tone="primary">
+                {profile.goal}
+              </MetricPill>
+              <MetricPill icon={ShieldCheck} tone={user ? "emerald" : "default"}>
+                {user ? "Account linked" : "Guest mode"}
+              </MetricPill>
+            </div>
+
+            <div className="rounded-[1.2rem] border border-border/60 bg-background/38 p-4">
+              <div className="text-xs text-muted-foreground">Equipment available</div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {profile.equipment.map((item) => (
+                  <span
+                    key={item}
+                    className="rounded-full border border-border/60 bg-muted/45 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground"
+                  >
+                    {item.replace("_", " ")}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-[1.2rem] border border-border/60 bg-background/38 p-4">
+              <div className="text-xs text-muted-foreground">Nutrition target</div>
+              <div className="mt-2 text-sm font-medium">
+                {profile.nutritionTarget || "Not set"}
+              </div>
+            </div>
+          </div>
+        </SurfaceCard>
+
+        <SectionHeading
+          icon={Cloud}
+          title="Account & Data"
+          description="Sync status, sign-in state, exports, and reset actions."
+        />
+
+        <SurfaceCard className="p-5">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between rounded-[1.2rem] border border-border/60 bg-background/38 p-4">
               <div>
                 <p className="text-sm font-medium">Cloud Sync</p>
                 <p className="text-xs text-muted-foreground">{cloudSyncDescription}</p>
@@ -195,8 +216,8 @@ export default function Profile() {
             <Button variant="destructive" className="w-full justify-start" onClick={handleReset}>
               <RotateCcw className="mr-2 h-4 w-4" /> Reset Current Week
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </SurfaceCard>
 
         <div className="text-center text-xs text-muted-foreground">
           v1.0.0 • Offline First

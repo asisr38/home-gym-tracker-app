@@ -8,12 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { apiRequest } from "@/lib/queryClient";
 import { SPLIT_OPTIONS } from "@/lib/planBuilder";
 import { cn } from "@/lib/utils";
+import { MetricPill, PageHeader, SurfaceCard } from "@/components/ui/app-surfaces";
+import { ArrowRight, Sparkles } from "lucide-react";
 
 const TOTAL_STEPS = 4;
 
@@ -51,12 +52,16 @@ const GOAL_OPTIONS = [
 
 function StepIndicator({ current }: { current: number }) {
   return (
-    <div className="flex items-center gap-2 mb-8">
+    <div className="mb-8 flex items-center gap-2">
       {Array.from({ length: TOTAL_STEPS }, (_, i) => (
         <div key={i} className="flex items-center gap-2">
           <div className={cn(
             "h-2 rounded-full transition-all duration-300",
-            i < current ? "bg-primary w-6" : i === current ? "bg-primary w-8" : "bg-muted w-4"
+            i < current
+              ? "w-7 bg-primary"
+              : i === current
+                ? "w-10 bg-primary"
+                : "w-4 bg-muted"
           )} />
         </div>
       ))}
@@ -136,17 +141,23 @@ export default function Onboarding() {
   };
 
   return (
-    <div className="min-h-screen app-shell flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-lg">
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold tracking-tighter text-primary">IronStride</h1>
-          <p className="text-sm text-muted-foreground mt-1">Set up your training profile</p>
-        </div>
+    <div className="min-h-screen app-shell px-4 py-6">
+      <div className="mx-auto w-full max-w-lg">
+        <PageHeader
+          eyebrow="IronStride"
+          title="Build Your Training Profile"
+          description="Answer a few setup questions so the app can frame your split, recovery, and tracking flow."
+          action={
+            <MetricPill icon={Sparkles} tone="primary">
+              Step {step + 1} of {TOTAL_STEPS}
+            </MetricPill>
+          }
+        />
 
-        <StepIndicator current={step} />
+        <SurfaceCard tone="primary" className="mt-5 p-5">
+          <StepIndicator current={step} />
 
-        <form onSubmit={form.handleSubmit(onSubmit)}>
+          <form onSubmit={form.handleSubmit(onSubmit)}>
 
           {/* ── Step 0: Basics ── */}
           {step === 0 && (
@@ -361,8 +372,8 @@ export default function Onboarding() {
               </div>
 
               {/* Summary card */}
-              <Card className="border-border/40 bg-muted/20">
-                <CardContent className="p-4 space-y-1">
+              <SurfaceCard className="p-4">
+                <div className="space-y-1">
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Your plan</p>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Split</span>
@@ -376,8 +387,8 @@ export default function Onboarding() {
                     <span className="text-muted-foreground">Equipment</span>
                     <span className="font-medium">{selectedEquipment.length} items</span>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </SurfaceCard>
             </div>
           )}
 
@@ -391,14 +402,17 @@ export default function Onboarding() {
             {step < TOTAL_STEPS - 1 ? (
               <Button type="button" onClick={handleNext} className="flex-1 h-12 text-base">
                 Continue
+                <ArrowRight className="h-4 w-4" />
               </Button>
             ) : (
               <Button type="submit" className="flex-1 h-12 text-base font-semibold">
                 Start Training
+                <ArrowRight className="h-4 w-4" />
               </Button>
             )}
           </div>
-        </form>
+          </form>
+        </SurfaceCard>
       </div>
     </div>
   );

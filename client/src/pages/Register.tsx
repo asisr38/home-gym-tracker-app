@@ -5,7 +5,9 @@ import { getAuthErrorMessage } from "@/lib/auth-helpers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { AuthShell } from "@/components/ui/auth-shell";
+import { MetricPill } from "@/components/ui/app-surfaces";
+import { ArrowRight, Cloud, UserPlus2 } from "lucide-react";
 
 export default function Register() {
   const [email, setEmail] = useState("");
@@ -59,32 +61,51 @@ export default function Register() {
 
   if (confirmationSent) {
     return (
-      <div className="min-h-screen app-shell p-6 flex items-center justify-center">
-        <Card className="w-full max-w-md border-border/60 shadow-2xl app-panel">
-          <CardHeader>
-            <CardTitle className="text-3xl font-bold tracking-tighter text-primary">Check your email</CardTitle>
-            <CardDescription>We sent a confirmation link to <strong>{email}</strong>. Click it to activate your account.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-sm text-center">
-              <Link href="/login" className="text-primary hover:underline">
-                Back to sign in
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <AuthShell
+        title="Check Your Email"
+        description={
+          <>
+            We sent a confirmation link to <strong>{email}</strong>. Click it to activate your
+            account.
+          </>
+        }
+        footer={
+          <div className="text-center">
+            <Link href="/login" className="text-primary hover:underline">
+              Back to sign in
+            </Link>
+          </div>
+        }
+      >
+        <MetricPill icon={Cloud} tone="emerald">
+          Confirmation sent
+        </MetricPill>
+      </AuthShell>
     );
   }
 
   return (
-    <div className="min-h-screen app-shell p-6 flex items-center justify-center">
-      <Card className="w-full max-w-md border-border/60 shadow-2xl app-panel">
-        <CardHeader>
-          <CardTitle className="text-3xl font-bold tracking-tighter text-primary">Create Account</CardTitle>
-          <CardDescription>Start syncing your training plan.</CardDescription>
-        </CardHeader>
-        <CardContent>
+    <AuthShell
+      title="Create Account"
+      description="Create an account to sync your split, progress history, and workout state."
+      footer={
+        <div className="text-center">
+          <Link href="/login" className="text-primary hover:underline">
+            Already have an account? Sign in
+          </Link>
+        </div>
+      }
+    >
+      <div className="flex flex-wrap gap-2">
+        <MetricPill icon={UserPlus2} tone="primary">
+          Account setup
+        </MetricPill>
+        <MetricPill icon={Cloud} tone="emerald">
+          Cross-device sync
+        </MetricPill>
+      </div>
+
+      <div>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -129,18 +150,12 @@ export default function Register() {
 
             {error && <p className="text-xs text-destructive">{error}</p>}
 
-            <Button type="submit" className="w-full text-lg h-12" disabled={loading}>
+            <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Creating..." : "Create Account"}
+              {!loading ? <ArrowRight className="h-4 w-4" /> : null}
             </Button>
           </form>
-
-          <div className="mt-4 text-sm text-center">
-            <Link href="/login" className="text-primary hover:underline">
-              Already have an account? Sign in
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+      </div>
+    </AuthShell>
   );
 }

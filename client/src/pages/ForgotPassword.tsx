@@ -5,7 +5,9 @@ import { getAuthErrorMessage } from "@/lib/auth-helpers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { AuthShell } from "@/components/ui/auth-shell";
+import { MetricPill } from "@/components/ui/app-surfaces";
+import { ArrowRight, MailCheck } from "lucide-react";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
@@ -43,13 +45,24 @@ export default function ForgotPassword() {
   };
 
   return (
-    <div className="min-h-screen app-shell p-6 flex items-center justify-center">
-      <Card className="w-full max-w-md border-border/60 shadow-2xl app-panel">
-        <CardHeader>
-          <CardTitle className="text-3xl font-bold tracking-tighter text-primary">Reset Password</CardTitle>
-          <CardDescription>We will email you a reset link.</CardDescription>
-        </CardHeader>
-        <CardContent>
+    <AuthShell
+      title="Reset Password"
+      description="We’ll send a reset link to the email address attached to your account."
+      footer={
+        <div className="text-center">
+          <Link href="/login" className="text-primary hover:underline">
+            Back to sign in
+          </Link>
+        </div>
+      }
+    >
+      <div className="flex flex-wrap gap-2">
+        <MetricPill icon={MailCheck} tone={sent ? "emerald" : "default"}>
+          {sent ? "Reset email sent" : "Email recovery"}
+        </MetricPill>
+      </div>
+
+      <div>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -68,18 +81,12 @@ export default function ForgotPassword() {
             {error && <p className="text-xs text-destructive">{error}</p>}
             {sent && <p className="text-xs text-green-600">Reset email sent.</p>}
 
-            <Button type="submit" className="w-full text-lg h-12" disabled={loading}>
+            <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Sending..." : "Send Reset Email"}
+              {!loading ? <ArrowRight className="h-4 w-4" /> : null}
             </Button>
           </form>
-
-          <div className="mt-4 text-sm text-center">
-            <Link href="/login" className="text-primary hover:underline">
-              Back to sign in
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+      </div>
+    </AuthShell>
   );
 }

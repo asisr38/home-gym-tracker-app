@@ -1,16 +1,19 @@
 import { useMemo } from "react";
 import { useStore } from "@/lib/store";
 import { MobileShell } from "@/components/layout/MobileShell";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { TrendingUp, Activity, Calendar, Flame } from "lucide-react";
+import { TrendingUp, Calendar, Flame, Dumbbell, Clock3 } from "lucide-react";
 import { format } from "date-fns";
+import { MetricPill, PageHeader, SectionHeading, SurfaceCard } from "@/components/ui/app-surfaces";
+import { Button } from "@/components/ui/button";
+import { useLocation } from "@/lib/router";
 
 const MS_IN_DAY = 24 * 60 * 60 * 1000;
 type ExerciseSessionEntry = { date: number; weight: number | null };
 
 export default function History() {
   const { history, profile } = useStore();
+  const [, setLocation] = useLocation();
 
   const stats = useMemo(() => {
     const now = Date.now();
@@ -124,33 +127,84 @@ export default function History() {
 
   return (
     <MobileShell>
-      <div className="p-6 space-y-6">
-        <div>
-          <h1 className="text-2xl font-semibold">Progress</h1>
-          <p className="text-xs text-muted-foreground">Clean snapshots of strength, volume, and consistency.</p>
-        </div>
+      <div className="space-y-6 p-5">
+        <PageHeader
+          eyebrow="Progress"
+          title="Strength, Volume, Consistency"
+          description="Your recent sessions translated into clean training signals instead of a long history dump."
+        />
 
         {history.length === 0 && (
-          <div className="text-center py-10 text-muted-foreground text-sm">
-            No sessions logged yet. Start a workout to see progress here.
-          </div>
+          <SurfaceCard tone="primary" className="p-5">
+            <div className="space-y-4">
+              <div>
+                <p className="text-eyebrow">No Data Yet</p>
+                <h2 className="text-xl font-semibold tracking-[-0.03em]">No sessions logged yet</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Start a workout to build strength trends, volume snapshots, and consistency markers.
+                </p>
+              </div>
+              <Button className="w-full" onClick={() => setLocation("/")}>
+                Go To Today
+              </Button>
+            </div>
+          </SurfaceCard>
         )}
 
         {history.length > 0 && (
           <>
-            <Card className="border-border/60 shadow-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4 text-primary" /> Strength
-                </CardTitle>
-                <CardDescription className="text-xs">Best weight per exercise</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2">
+            <div className="flex flex-wrap gap-2">
+              <MetricPill icon={Dumbbell} tone="primary">
+                {Math.round(stats.currentWeekVolume)} weekly volume
+              </MetricPill>
+              <MetricPill icon={Flame} tone="amber">
+                {stats.streak} day streak
+              </MetricPill>
+              <MetricPill icon={Clock3} tone="emerald">
+                {stats.cardioTotalMinutes} cardio min
+              </MetricPill>
+            </div>
+
+            <SurfaceCard tone="primary" className="p-5">
+              <div className="space-y-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-eyebrow">Weekly Volume</p>
+                    <h2 className="text-xl font-semibold tracking-[-0.03em]">Output compared to last week</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Current week volume is {Math.round(stats.currentWeekVolume)} versus{" "}
+                      {Math.round(stats.previousWeekVolume)} last week.
+                    </p>
+                  </div>
+                  <div className="rounded-[1.1rem] border border-primary/20 bg-background/40 px-3 py-2 text-right">
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Trend</div>
+                    <div className="text-lg font-semibold">{Math.round(volumePercent)}%</div>
+                  </div>
+                </div>
+                <Progress value={volumePercent} className="h-2.5 bg-primary/12" />
+              </div>
+            </SurfaceCard>
+
+            <SectionHeading
+              icon={TrendingUp}
+              title="Performance Snapshot"
+              description="The strongest signals from recent logged work."
+            />
+
+            <SurfaceCard className="p-5">
+              <div className="space-y-3">
+                <div>
+                  <p className="text-eyebrow">Strength</p>
+                  <h3 className="text-lg font-semibold tracking-[-0.03em]">Best weight per exercise</h3>
+                </div>
                 {stats.strength.length === 0 && (
                   <div className="text-xs text-muted-foreground">Log sets to see strength trends.</div>
                 )}
                 {stats.strength.map((item) => (
-                  <div key={item.name} className="flex items-center justify-between text-sm">
+                  <div
+                    key={item.name}
+                    className="flex items-center justify-between rounded-[1.1rem] border border-border/60 bg-background/40 px-3 py-3 text-sm"
+                  >
                     <div>
                       <div className="font-medium">{item.name}</div>
                       <div className="text-xs text-muted-foreground">
@@ -160,62 +214,48 @@ export default function History() {
                     <div className="text-lg font-semibold text-muted-foreground">{item.trend}</div>
                   </div>
                 ))}
-              </CardContent>
-            </Card>
+              </div>
+            </SurfaceCard>
 
-            <Card className="border-border/60 shadow-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Activity className="h-4 w-4 text-primary" /> Volume
-                </CardTitle>
-                <CardDescription className="text-xs">Weekly total volume</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <Progress value={volumePercent} className="h-2" />
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>{Math.round(stats.currentWeekVolume)} total volume</span>
-                  <span>Prev week: {Math.round(stats.previousWeekVolume)}</span>
+            <div className="grid gap-3">
+              <SurfaceCard tone="amber" className="p-5">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Flame className="h-4 w-4 text-amber-300" />
+                    <p className="text-sm font-semibold">Consistency</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-[1.1rem] border border-border/60 bg-background/38 p-3">
+                      <div className="text-xs text-muted-foreground">Workout streak</div>
+                      <div className="mt-1 text-2xl font-semibold">{stats.streak} days</div>
+                    </div>
+                    <div className="rounded-[1.1rem] border border-border/60 bg-background/38 p-3">
+                      <div className="text-xs text-muted-foreground">Days this month</div>
+                      <div className="mt-1 text-2xl font-semibold">{stats.daysThisMonth}</div>
+                    </div>
+                  </div>
                 </div>
-              </CardContent>
-            </Card>
+              </SurfaceCard>
 
-            <Card className="border-border/60 shadow-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Flame className="h-4 w-4 text-primary" /> Consistency
-                </CardTitle>
-                <CardDescription className="text-xs">Streak and monthly cadence</CardDescription>
-              </CardHeader>
-              <CardContent className="flex items-center justify-between text-sm">
-                <div>
-                  <div className="text-xs text-muted-foreground">Workout streak</div>
-                  <div className="text-xl font-semibold">{stats.streak} days</div>
+              <SurfaceCard tone="emerald" className="p-5">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-emerald-300" />
+                    <p className="text-sm font-semibold">Cardio</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="rounded-[1.1rem] border border-border/60 bg-background/38 p-3">
+                      <div className="text-xs text-muted-foreground">Total minutes</div>
+                      <div className="mt-1 text-2xl font-semibold">{stats.cardioTotalMinutes}</div>
+                    </div>
+                    <div className="rounded-[1.1rem] border border-border/60 bg-background/38 p-3">
+                      <div className="text-xs text-muted-foreground">Avg session</div>
+                      <div className="mt-1 text-2xl font-semibold">{stats.cardioAvgMinutes} min</div>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">Days trained this month</div>
-                  <div className="text-xl font-semibold">{stats.daysThisMonth}</div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-border/60 shadow-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-primary" /> Cardio
-                </CardTitle>
-                <CardDescription className="text-xs">Total minutes & average duration</CardDescription>
-              </CardHeader>
-              <CardContent className="flex items-center justify-between text-sm">
-                <div>
-                  <div className="text-xs text-muted-foreground">Total minutes</div>
-                  <div className="text-xl font-semibold">{stats.cardioTotalMinutes}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">Avg session</div>
-                  <div className="text-xl font-semibold">{stats.cardioAvgMinutes} min</div>
-                </div>
-              </CardContent>
-            </Card>
+              </SurfaceCard>
+            </div>
 
             <div className="text-xs text-muted-foreground">
               Updated {format(new Date(), "MMM d, yyyy")}

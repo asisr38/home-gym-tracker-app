@@ -5,7 +5,9 @@ import { getAuthErrorMessage } from "@/lib/auth-helpers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { AuthShell } from "@/components/ui/auth-shell";
+import { MetricPill } from "@/components/ui/app-surfaces";
+import { ArrowRight, ShieldCheck } from "lucide-react";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -42,13 +44,27 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen app-shell p-6 flex items-center justify-center">
-      <Card className="w-full max-w-md border-border/60 shadow-2xl app-panel">
-        <CardHeader>
-          <CardTitle className="text-3xl font-bold tracking-tighter text-primary">IronStride</CardTitle>
-          <CardDescription>Sign in to sync your training data.</CardDescription>
-        </CardHeader>
-        <CardContent>
+    <AuthShell
+      title="Sign In"
+      description="Pick up exactly where you left off and sync your training data across devices."
+      footer={
+        <div className="flex items-center justify-between">
+          <Link href="/forgot-password" className="text-primary hover:underline">
+            Forgot password?
+          </Link>
+          <Link href="/register" className="text-primary hover:underline">
+            Create account
+          </Link>
+        </div>
+      }
+    >
+      <div className="flex flex-wrap gap-2">
+        <MetricPill icon={ShieldCheck} tone="emerald">
+          Secure email login
+        </MetricPill>
+      </div>
+
+      <div>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -80,21 +96,12 @@ export default function Login() {
 
             {error && <p className="text-xs text-destructive">{error}</p>}
 
-            <Button type="submit" className="w-full text-lg h-12" disabled={loading}>
+            <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Signing in..." : "Sign In"}
+              {!loading ? <ArrowRight className="h-4 w-4" /> : null}
             </Button>
           </form>
-
-          <div className="mt-4 flex items-center justify-between text-sm">
-            <Link href="/forgot-password" className="text-primary hover:underline">
-              Forgot password?
-            </Link>
-            <Link href="/register" className="text-primary hover:underline">
-              Create account
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+      </div>
+    </AuthShell>
   );
 }

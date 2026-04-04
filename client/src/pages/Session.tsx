@@ -4,7 +4,6 @@ import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -20,7 +19,11 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Clock3,
+  Dumbbell,
+  Flame,
   Search,
+  Target,
   Timer,
 } from "lucide-react";
 import { useState, useEffect, useMemo, useRef } from "react";
@@ -30,6 +33,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { ToastAction } from "@/components/ui/toast";
 import { getLastWeekBestForExercise } from "@/lib/progression";
 import { getExerciseSwapOptions, getPrimaryExercise, type ExerciseSwapOption } from "@/lib/exercise-alternatives";
+import { MetricPill, SurfaceCard } from "@/components/ui/app-surfaces";
+import { getWorkoutTypeLabel, getWorkoutVisual } from "@/lib/day-ui";
 
 const DEFAULT_REST_SECONDS = 90;
 
@@ -203,6 +208,10 @@ export default function Session() {
     (acc, ex) => acc + ex.sets.filter((set) => set.completed).length,
     0,
   );
+  const sessionVisual = getWorkoutVisual(resolvedDay.dayType, resolvedDay.type);
+  const SessionIcon = sessionVisual.icon;
+  const sessionProgress =
+    totalSets > 0 ? (completedSets / totalSets) * 100 : resolvedDay.completed ? 100 : 0;
 
   const lastWeightByExercise = useMemo(() => {
     const map = new Map<string, number>();
@@ -455,6 +464,12 @@ export default function Session() {
       : [activeLastWeight - weightStep, activeLastWeight, activeLastWeight + weightStep]
           .filter((value) => value > 0)
           .map((value) => Number(value.toFixed(2)));
+  const activeCompletedSets = activeExercise
+    ? activeExercise.sets.filter((set) => set.completed).length
+    : 0;
+  const activeExerciseProgress = activeExercise?.sets.length
+    ? (activeCompletedSets / activeExercise.sets.length) * 100
+    : 0;
 
   const handleSwapSelection = (option: ExerciseSwapOption) => {
     if (!activeExercise || option.isCurrent) return;
@@ -487,31 +502,76 @@ export default function Session() {
 
   return (
     <div className="min-h-screen app-shell flex justify-center">
-      <div className="w-full max-w-md min-h-screen bg-background app-panel safe-px safe-pt shadow-2xl ring-1 ring-black/5 dark:ring-white/10 border border-border/60 sm:rounded-[28px] pb-24">
-        {/* Sticky Header */}
-        <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b p-4 flex items-center justify-between">
-          <Button variant="ghost" size="icon" onClick={() => setLocation("/")}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div className="text-center">
-            <h2 className="font-bold text-sm uppercase tracking-wider">{resolvedDay.title}</h2>
-            <p className="text-xs text-muted-foreground">Day {resolvedDay.dayNumber}</p>
+      <div className="w-full max-w-md min-h-screen bg-background app-panel safe-px safe-pt shadow-2xl ring-1 ring-white/10 border border-border/60 sm:rounded-[30px] pb-24">
+        <div className="sticky top-0 z-10 border-b border-border/60 bg-background/80 p-4 backdrop-blur-xl">
+          <div className="flex items-center justify-between gap-3">
+            <Button variant="ghost" size="icon" onClick={() => setLocation("/")}>
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div className="min-w-0 flex-1 text-center">
+              <p className="text-eyebrow">Session</p>
+              <h2 className="truncate text-sm font-semibold tracking-[0.02em]">{resolvedDay.title}</h2>
+            </div>
+            <Button size="sm" onClick={handleFinish} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+              Finish
+            </Button>
           </div>
-          <Button size="sm" onClick={handleFinish} className="bg-green-600 hover:bg-green-700 text-white">
-            Finish
-          </Button>
         </div>
 
-        <div className="p-4 space-y-6">
+        <div className="space-y-5 p-4">
           {isMockDay && (
-            <div className="rounded-lg border border-dashed border-border/60 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-              Starter template loaded because no plan data was found.
-            </div>
+            <SurfaceCard tone="amber" className="p-4">
+              <p className="text-sm text-muted-foreground">
+                Starter template loaded because no plan data was found.
+              </p>
+            </SurfaceCard>
           )}
 
+          <SurfaceCard tone={sessionVisual.tone} className="p-5">
+            <div className={cn("absolute inset-x-0 top-0 h-28 bg-linear-to-br", sessionVisual.gradientClassName)} />
+            <div className="relative space-y-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-background/45">
+                      <SessionIcon className={cn("h-5 w-5", sessionVisual.accentClassName)} />
+                    </div>
+                    <MetricPill tone={sessionVisual.tone}>
+                      {getWorkoutTypeLabel(resolvedDay.dayType, resolvedDay.type)}
+                    </MetricPill>
+                  </div>
+                  <div>
+                    <p className="text-eyebrow">Day {resolvedDay.dayNumber}</p>
+                    <h1 className="text-2xl font-bold tracking-[-0.04em]">{resolvedDay.title}</h1>
+                  </div>
+                </div>
+                <div className="rounded-[1.1rem] border border-white/10 bg-background/40 px-3 py-2 text-right">
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Progress</div>
+                  <div className="text-lg font-semibold">{Math.round(sessionProgress)}%</div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <MetricPill icon={Dumbbell}>
+                  {resolvedDay.type === "lift" ? `${completedSets}/${totalSets} sets` : "Cardio log"}
+                </MetricPill>
+                <MetricPill icon={Target}>
+                  {resolvedDay.type === "lift"
+                    ? `${completedExercises}/${resolvedDay.exercises.length} exercises`
+                    : resolvedDay.runTarget?.distance
+                      ? `${resolvedDay.runTarget.distance} ${profile.units === "imperial" ? "mi" : "km"} target`
+                      : "Recovery day"}
+                </MetricPill>
+                <MetricPill icon={Clock3}>
+                  {restRemaining !== null ? formatRestTime(Math.max(restRemaining, 0)) : "No rest timer"}
+                </MetricPill>
+              </div>
+            </div>
+          </SurfaceCard>
+
           {restRemaining !== null && (
-            <Card className="border-border/60 shadow-sm">
-              <CardContent className="p-4 space-y-3">
+            <SurfaceCard tone="amber" className="p-4">
+              <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs text-muted-foreground">Rest Timer</p>
@@ -524,12 +584,7 @@ export default function Session() {
                   </div>
                 </div>
                 <div className="grid grid-cols-4 gap-2 text-xs">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-11"
-                    onClick={() => setRestRunning((prev) => !prev)}
-                  >
+                  <Button type="button" variant="outline" className="h-11" onClick={() => setRestRunning((prev) => !prev)}>
                     {restRunning ? "Pause" : "Resume"}
                   </Button>
                   <Button
@@ -561,14 +616,14 @@ export default function Session() {
                     Skip
                   </Button>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </SurfaceCard>
           )}
 
           {resolvedDay.type === "lift" && activeExercise && (
             <div className="space-y-4">
-              <Card className="border-border/60 shadow-sm">
-                <CardContent className="p-3 space-y-3">
+              <SurfaceCard className="p-4">
+                <div className="space-y-3">
                   <div className="grid grid-cols-3 items-center gap-2">
                     <Button
                       type="button"
@@ -601,7 +656,9 @@ export default function Session() {
                   </div>
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span>Completed exercises</span>
-                    <span className="font-mono">{completedExercises}/{resolvedDay.exercises.length}</span>
+                    <span className="font-mono">
+                      {completedExercises}/{resolvedDay.exercises.length}
+                    </span>
                   </div>
                   <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
                     {resolvedDay.exercises.map((exercise, index) => {
@@ -623,11 +680,11 @@ export default function Session() {
                       );
                     })}
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </SurfaceCard>
 
-              <Card className="border-border/60 shadow-sm">
-                <CardContent className="p-4 space-y-4">
+              <SurfaceCard tone={sessionVisual.tone} className="p-4">
+                <div className="space-y-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="space-y-2">
                       <button
@@ -637,7 +694,8 @@ export default function Session() {
                       >
                         <p className="text-base font-semibold">{activeExercise.name}</p>
                         <p className="text-[11px] text-muted-foreground">
-                          {activeExercise.sets.length} x {activeTargetReps} • {activeExercise.muscleGroup || "Full Body"}
+                          {activeExercise.sets.length} x {activeTargetReps} •{" "}
+                          {activeExercise.muscleGroup || "Full Body"}
                         </p>
                       </button>
                       <div className="flex flex-wrap gap-2">
@@ -656,6 +714,19 @@ export default function Session() {
                       <div className="font-mono text-sm text-foreground">
                         {activeLastWeight ?? "--"} {unitLabel}
                       </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                      <span>Exercise completion</span>
+                      <span>{Math.round(activeExerciseProgress)}%</span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                      <div
+                        className="h-full rounded-full bg-primary transition-[width]"
+                        style={{ width: `${activeExerciseProgress}%` }}
+                      />
                     </div>
                   </div>
 
@@ -702,7 +773,7 @@ export default function Session() {
                           : "--"}
                       </span>
                     </div>
-                    <div className="grid grid-cols-4 gap-2 items-center">
+                    <div className="grid grid-cols-4 items-center gap-2">
                       <Button
                         type="button"
                         variant="outline"
@@ -713,6 +784,7 @@ export default function Session() {
                       </Button>
                       <Input
                         type="number"
+                        inputMode="decimal"
                         placeholder={`Weight (${unitLabel})`}
                         value={activeInputs.weight}
                         onChange={(e) =>
@@ -721,7 +793,7 @@ export default function Session() {
                             [activeExercise.id]: { ...activeInputs, weight: e.target.value },
                           }))
                         }
-                        className="h-11 text-sm col-span-2"
+                        className="col-span-2 h-11 text-sm"
                       />
                       <Button
                         type="button"
@@ -749,6 +821,7 @@ export default function Session() {
                     <div className="grid grid-cols-2 gap-2">
                       <Input
                         type="number"
+                        inputMode="numeric"
                         placeholder={`Reps (${activeTargetReps})`}
                         value={activeInputs.reps}
                         onChange={(e) =>
@@ -797,6 +870,7 @@ export default function Session() {
                         <div className="grid grid-cols-2 gap-2">
                           <Input
                             type="number"
+                            inputMode="decimal"
                             placeholder={`Weight (${unitLabel})`}
                             className="h-10 text-sm"
                             value={set.weight ?? ""}
@@ -811,6 +885,7 @@ export default function Session() {
                           />
                           <Input
                             type="number"
+                            inputMode="numeric"
                             placeholder={set.targetReps}
                             className="h-10 text-sm"
                             value={set.actualReps ?? ""}
@@ -827,8 +902,8 @@ export default function Session() {
                       </div>
                     ))}
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </SurfaceCard>
             </div>
           )}
 
@@ -929,26 +1004,32 @@ export default function Session() {
             </SheetContent>
           </Sheet>
 
-        {/* Run / Cardio Section */}
-        {(resolvedDay.type === "run" || resolvedDay.runTarget) && (
-           <Card className="border-l-4 border-l-blue-500">
-             <CardContent className="p-6 space-y-4">
+          {(resolvedDay.type === "run" || resolvedDay.runTarget) && (
+            <SurfaceCard tone="blue" className="p-5">
+              <div className="space-y-4">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-blue-500/10 rounded-full text-blue-500">
+                  <div className="rounded-full bg-blue-500/10 p-2 text-blue-400">
                     <Timer className="h-6 w-6" />
                   </div>
                   <div>
                     <h3 className="font-bold">Run Tracker</h3>
-                    <p className="text-sm text-muted-foreground">{resolvedDay.runTarget?.description || 'Daily active recovery run'}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {resolvedDay.runTarget?.description || "Daily active recovery run"}
+                    </p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-xs font-semibold">Distance ({profile.units === 'imperial' ? 'mi' : 'km'})</label>
-                    <Input 
-                      type="number" 
-                      placeholder={resolvedDay.runTarget?.distance.toString() || profile.dailyRunTarget.toString()}
+                    <label className="text-xs font-semibold">
+                      Distance ({profile.units === "imperial" ? "mi" : "km"})
+                    </label>
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      placeholder={
+                        resolvedDay.runTarget?.distance.toString() || profile.dailyRunTarget.toString()
+                      }
                       value={runDistance}
                       onChange={(e) => setRunDistance(e.target.value)}
                       className="text-lg font-mono"
@@ -956,8 +1037,9 @@ export default function Session() {
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-semibold">Time (min)</label>
-                    <Input 
-                      type="number" 
+                    <Input
+                      type="number"
+                      inputMode="decimal"
                       placeholder="30"
                       value={runTime}
                       onChange={(e) => setRunTime(e.target.value)}
@@ -965,34 +1047,34 @@ export default function Session() {
                     />
                   </div>
                 </div>
-             </CardContent>
-           </Card>
-        )}
+              </div>
+            </SurfaceCard>
+          )}
 
-        {/* Leg Day Extras */}
-        {isLegDay && (
-          <Card className="bg-yellow-500/10 border-yellow-500/20">
-            <CardContent className="p-4 flex items-center justify-between">
-              <span className="font-medium text-yellow-600 dark:text-yellow-400">Did you stretch calves after run?</span>
-              <Checkbox 
-                checked={calvesStretched}
-                onCheckedChange={(c) => setCalvesStretched(!!c)}
-                className="h-6 w-6 border-yellow-500"
+          {isLegDay && (
+            <SurfaceCard tone="amber" className="p-4">
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-amber-200">Did you stretch calves after run?</span>
+                <Checkbox
+                  checked={calvesStretched}
+                  onCheckedChange={(c) => setCalvesStretched(!!c)}
+                  className="h-6 w-6 border-yellow-500"
+                />
+              </div>
+            </SurfaceCard>
+          )}
+
+          <SurfaceCard className="p-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Session Notes</label>
+              <Textarea
+                placeholder="How did it feel? Any pain? RPE?"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                className="min-h-[100px]"
               />
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Session Notes */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Session Notes</label>
-          <Textarea 
-            placeholder="How did it feel? Any pain? RPE?"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            className="min-h-[100px]"
-          />
-        </div>
+            </div>
+          </SurfaceCard>
         </div>
       </div>
     </div>

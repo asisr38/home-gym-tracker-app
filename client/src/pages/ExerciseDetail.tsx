@@ -5,11 +5,12 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Clock3,
   Dumbbell,
   Play,
+  Target,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -28,6 +29,8 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { getLastWeekBestForExercise } from "@/lib/progression";
+import { MetricPill, SurfaceCard } from "@/components/ui/app-surfaces";
+import { getWorkoutTypeLabel, getWorkoutVisual } from "@/lib/day-ui";
 
 type Params = {
   dayId: string;
@@ -163,6 +166,8 @@ export default function ExerciseDetail() {
     ? (completedSetCount / exercise.sets.length) * 100
     : 0;
   const latestWeight = historyEntries[0]?.weight ?? null;
+  const exerciseVisual = getWorkoutVisual(day.dayType, day.type);
+  const ExerciseIcon = exerciseVisual.icon;
 
   const adjustSetValue = (setId: string, field: SetField, delta: number) => {
     const target = exercise.sets.find((set) => set.id === setId);
@@ -198,8 +203,8 @@ export default function ExerciseDetail() {
 
   return (
     <div className="min-h-screen app-shell flex justify-center">
-      <div className="w-full max-w-md min-h-screen bg-background app-panel safe-px safe-pt shadow-2xl ring-1 ring-black/5 dark:ring-white/10 border border-border/60 sm:rounded-[28px] pb-28">
-        <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b p-4 space-y-3">
+      <div className="w-full max-w-md min-h-screen bg-background app-panel safe-px safe-pt shadow-2xl ring-1 ring-white/10 border border-border/60 sm:rounded-[30px] pb-28">
+        <div className="sticky top-0 z-10 border-b border-border/60 bg-background/80 p-4 space-y-3 backdrop-blur-xl">
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="icon" onClick={() => setLocation(`/session/${dayId}`)}>
               <ArrowLeft className="h-5 w-5" />
@@ -228,14 +233,45 @@ export default function ExerciseDetail() {
         </div>
 
         <div className="p-4 space-y-4">
-          <Card className="border-border/60 shadow-sm">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Exercise Details</CardTitle>
-              <CardDescription className="text-xs">
-                {primaryExercise?.name} • {primaryExercise?.muscleGroup || "Full Body"}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
+          <SurfaceCard tone={exerciseVisual.tone} className="p-5">
+            <div className={cn("absolute inset-x-0 top-0 h-24 bg-linear-to-br", exerciseVisual.gradientClassName)} />
+            <div className="relative space-y-3 text-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-background/45">
+                      <ExerciseIcon className={cn("h-4.5 w-4.5", exerciseVisual.accentClassName)} />
+                    </div>
+                    <MetricPill tone={exerciseVisual.tone}>
+                      {getWorkoutTypeLabel(day.dayType, day.type)}
+                    </MetricPill>
+                  </div>
+                  <div>
+                    <p className="text-eyebrow">Exercise Details</p>
+                    <h2 className="text-xl font-semibold tracking-[-0.03em]">{exercise.name}</h2>
+                    <p className="text-xs text-muted-foreground">
+                      {primaryExercise?.name} • {primaryExercise?.muscleGroup || "Full Body"}
+                    </p>
+                  </div>
+                </div>
+                <div className="rounded-[1.1rem] border border-white/10 bg-background/40 px-3 py-2 text-right">
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Progress</div>
+                  <div className="text-lg font-semibold">{Math.round(setProgress)}%</div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <MetricPill icon={Target}>
+                  {exercise.sets.length} x {exercise.sets[0]?.targetReps ?? "8-12"}
+                </MetricPill>
+                <MetricPill icon={Dumbbell}>
+                  {completedSetCount}/{exercise.sets.length} sets logged
+                </MetricPill>
+                <MetricPill icon={Clock3}>
+                  Last best {lastWeekBest ? `${lastWeekBest.weight} ${unitLabel}` : "--"}
+                </MetricPill>
+              </div>
+
               <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span>Prescribed</span>
                 <span>
@@ -262,17 +298,18 @@ export default function ExerciseDetail() {
                   Swapped: {exercise.swapReason}
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </SurfaceCard>
 
-          <Card className="border-border/60 shadow-sm">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Log Sets</CardTitle>
-              <CardDescription className="text-xs">
-                Adjust weight and reps, then save each set to auto-advance.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
+          <SurfaceCard className="p-5">
+            <div className="space-y-3">
+              <div>
+                <p className="text-eyebrow">Log Sets</p>
+                <h3 className="text-lg font-semibold tracking-[-0.03em]">Adjust weight and reps</h3>
+                <p className="text-xs text-muted-foreground">
+                  Save each set to auto-advance.
+                </p>
+              </div>
               {exercise.sets.map((set, index) => {
                 const isCompleted = set.completed;
                 return (
@@ -420,17 +457,18 @@ export default function ExerciseDetail() {
                   </div>
                 )}
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </SurfaceCard>
 
-          <Card className="border-border/60 shadow-sm">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Alternatives</CardTitle>
-              <CardDescription className="text-xs">
-                Tap to swap if equipment is unavailable.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2">
+          <SurfaceCard className="p-5">
+            <div className="space-y-2">
+              <div>
+                <p className="text-eyebrow">Alternatives</p>
+                <h3 className="text-lg font-semibold tracking-[-0.03em]">Swap this movement</h3>
+                <p className="text-xs text-muted-foreground">
+                  Tap to swap if equipment is unavailable.
+                </p>
+              </div>
               {alternatives.length === 0 && (
                 <div className="text-xs text-muted-foreground">No alternatives listed yet.</div>
               )}
@@ -496,17 +534,15 @@ export default function ExerciseDetail() {
                   </button>
                 );
               })}
-            </CardContent>
-          </Card>
+            </div>
+          </SurfaceCard>
 
-          <Card className="border-border/60 shadow-sm">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Notes & Guidance</CardTitle>
-              <CardDescription className="text-xs">
-                Form cues, tweaks, or pain signals.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
+          <SurfaceCard className="p-5">
+            <div className="space-y-3">
+              <div>
+                <p className="text-eyebrow">Notes & Guidance</p>
+                <h3 className="text-lg font-semibold tracking-[-0.03em]">Form cues and adjustments</h3>
+              </div>
               <Textarea
                 value={exercise.notes || ""}
                 onChange={(event) => updateExerciseNotes(dayId, exercise.id, event.target.value)}
@@ -542,15 +578,15 @@ export default function ExerciseDetail() {
                   )}
                 </div>
               </details>
-            </CardContent>
-          </Card>
+            </div>
+          </SurfaceCard>
 
-          <Card className="border-border/60 shadow-sm">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Last 5 Sessions</CardTitle>
-              <CardDescription className="text-xs">Best set trend</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
+          <SurfaceCard className="p-5">
+            <div className="space-y-3 text-sm">
+              <div>
+                <p className="text-eyebrow">Last 5 Sessions</p>
+                <h3 className="text-lg font-semibold tracking-[-0.03em]">Best set trend</h3>
+              </div>
               {historyEntries.length === 0 ? (
                 <div className="text-xs text-muted-foreground">No history yet.</div>
               ) : (
@@ -614,8 +650,8 @@ export default function ExerciseDetail() {
                   </Table>
                 </>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </SurfaceCard>
         </div>
 
         <div className="sticky bottom-0 z-10 border-t bg-background/95 backdrop-blur p-4 safe-pb">
