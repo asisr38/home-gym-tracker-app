@@ -3,6 +3,7 @@
 - Mobile-first workout tracker for home and Planet Fitness style training.
 - The current app behavior is centered on a fixed 5-day upper/lower split generated from `client/src/lib/upperLowerPlan.ts`, not a free-form workout planner.
 - Core user journey: open Today view, start the scheduled session, quick-log sets, complete the session, review weekly volume and history snapshots.
+- The day session flow now supports in-place exercise swaps through a searchable alternative picker, so users can keep the same slot and logged progress when equipment is unavailable or a movement feels wrong.
 
 # Architecture Notes
 

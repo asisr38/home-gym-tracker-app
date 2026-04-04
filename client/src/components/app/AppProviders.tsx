@@ -7,6 +7,16 @@ import { AuthProvider } from "@/lib/auth";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
+function ServiceWorkerRegistration() {
+  useEffect(() => {
+    if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.register("/sw.js").catch(() => {
+      // SW registration is best-effort; failure is non-fatal
+    });
+  }, []);
+  return null;
+}
+
 function ThemePreferenceSync() {
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -40,6 +50,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <TooltipProvider>
+          <ServiceWorkerRegistration />
           <ThemePreferenceSync />
           <Toaster />
           {children}

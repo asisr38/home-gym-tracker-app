@@ -26,6 +26,27 @@ pnpm context:watch    # Watch mode for context regeneration
 
 There are no automated tests in this repository.
 
+## Mobile-First PWA
+
+This app is a **mobile-first Progressive Web App**. Every UI decision must start from a ~390px wide phone screen and expand up, never the reverse.
+
+### Rules
+- **Touch targets**: minimum `44×44px` for all interactive elements. Use `h-11`/`h-12`/`h-14` on buttons and `min-w-[44px]` on icon-only controls.
+- **Tap feedback**: interactive elements must have `active:` or `hover:` states. Use `whileTap={{ scale: 0.95 }}` (framer-motion) on cards/buttons that should feel physical.
+- **No hover-only affordances**: any feature revealed only on hover is invisible on mobile. Use long-press or visible UI instead.
+- **Safe areas**: the app shell already sets `safe-pt`, `safe-pb`, `safe-px` via CSS env vars. Keep this on all full-screen containers and the bottom nav.
+- **Viewport**: `maximum-scale=1` and `viewport-fit=cover` are set in `app/layout.tsx`. Do not override these.
+- **Inputs**: use `inputMode` and `autoComplete` attributes on every `<Input>` to trigger the right mobile keyboard (`inputMode="email"`, `inputMode="decimal"`, etc.).
+- **Scroll containers**: add `no-scrollbar` to scrollable areas inside the shell. Use `overflow-y-auto` (not `overflow-scroll`) to avoid momentum scroll bugs on iOS.
+- **Typography**: minimum `text-sm` (14px) for body copy; never below `text-xs` (12px) for secondary labels. Avoid long lines; the `max-w-md` shell already constrains width.
+
+### PWA Setup
+- **Manifest**: `app/manifest.ts` — Next.js generates `/manifest.webmanifest` automatically.
+- **Service Worker**: `public/sw.js` — registered in `AppProviders` via `useEffect`. Strategy: cache-first for static assets (`/_next/static/`), network-first for API routes (`/api/`), stale-while-revalidate for pages.
+- **Icons**: `public/icons/icon.svg` (used by manifest). The `<link rel="apple-touch-icon">` points to this as well.
+- **Meta tags**: viewport, theme-color, and `apple-mobile-web-app-*` are in `app/layout.tsx`'s exported `viewport` and `metadata` objects.
+- When adding a new page, make sure it works offline (data from Zustand) and degrades gracefully when the network is unavailable.
+
 ## Architecture
 
 **Full-stack TypeScript monorepo**: React 19 + Next.js 15 (App Router), Supabase auth + Postgres storage, Zustand local-first state.

@@ -5,13 +5,31 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, ChevronLeft, ChevronRight, Timer } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
+  ArrowLeft,
+  ArrowRightLeft,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  Timer,
+} from "lucide-react";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
 import { ToastAction } from "@/components/ui/toast";
 import { getLastWeekBestForExercise } from "@/lib/progression";
+import { getExerciseSwapOptions, getPrimaryExercise, type ExerciseSwapOption } from "@/lib/exercise-alternatives";
 
 const DEFAULT_REST_SECONDS = 90;
 
@@ -29,6 +47,7 @@ export default function Session() {
     logWorkoutSet,
     completeWorkout,
     undoCompleteWorkout,
+    swapExercise,
     updateWorkoutNotes,
     updateRunDraft,
     profile,
@@ -83,6 +102,8 @@ export default function Session() {
   const [restRemaining, setRestRemaining] = useState<number | null>(null);
   const [restRunning, setRestRunning] = useState(false);
   const [restComplete, setRestComplete] = useState(false);
+  const [swapSheetOpen, setSwapSheetOpen] = useState(false);
+  const [swapQuery, setSwapQuery] = useState("");
   const notesHydratedRef = useRef(false);
   const runDraftHydratedRef = useRef(false);
 
@@ -92,6 +113,8 @@ export default function Session() {
     setRestRemaining(null);
     setRestRunning(false);
     setRestComplete(false);
+    setSwapSheetOpen(false);
+    setSwapQuery("");
   }, [resolvedDay?.id]);
 
   useEffect(() => {
@@ -398,6 +421,23 @@ export default function Session() {
         : null,
     [activeExercise, history, profile.startOfWeek],
   );
+  const activePrimaryExercise = useMemo(
+    () => (activeExercise ? getPrimaryExercise(activeExercise) : null),
+    [activeExercise],
+  );
+  const activeSwapOptions = useMemo(
+    () => (activeExercise ? getExerciseSwapOptions(activeExercise) : []),
+    [activeExercise],
+  );
+  const filteredSwapOptions = useMemo(() => {
+    const query = swapQuery.trim().toLowerCase();
+    if (!query) return activeSwapOptions;
+    return activeSwapOptions.filter((option) =>
+      [option.name, option.reason, option.muscleGroup]
+        .filter(Boolean)
+        .some((value) => value!.toLowerCase().includes(query)),
+    );
+  }, [activeSwapOptions, swapQuery]);
   const activeTargetReps = activeExercise?.sets[0]?.targetReps ?? "8-12";
   const activeInputs =
     activeExercise
@@ -415,6 +455,36 @@ export default function Session() {
       : [activeLastWeight - weightStep, activeLastWeight, activeLastWeight + weightStep]
           .filter((value) => value > 0)
           .map((value) => Number(value.toFixed(2)));
+
+  const handleSwapSelection = (option: ExerciseSwapOption) => {
+    if (!activeExercise || option.isCurrent) return;
+
+    const exerciseKey = activeExercise.id;
+    const previous = {
+      id: activeExercise.id,
+      name: activeExercise.name,
+      muscleGroup: activeExercise.muscleGroup,
+      reason: option.isOriginal ? "Back to previous swap" : "Back to previous",
+    };
+
+    swapExercise(resolvedDay.id, exerciseKey, option);
+    setSwapSheetOpen(false);
+    setSwapQuery("");
+    toast({
+      title: option.isOriginal ? `Back to ${option.name}` : `Swapped to ${option.name}`,
+      description:
+        option.reason || "Your sets and progress stayed attached to this slot.",
+      action: (
+        <ToastAction
+          altText="Undo swap"
+          onClick={() => swapExercise(resolvedDay.id, exerciseKey, previous)}
+        >
+          Undo
+        </ToastAction>
+      ),
+    });
+  };
+
   return (
     <div className="min-h-screen app-shell flex justify-center">
       <div className="w-full max-w-md min-h-screen bg-background app-panel safe-px safe-pt shadow-2xl ring-1 ring-black/5 dark:ring-white/10 border border-border/60 sm:rounded-[28px] pb-24">
@@ -559,22 +629,67 @@ export default function Session() {
               <Card className="border-border/60 shadow-sm">
                 <CardContent className="p-4 space-y-4">
                   <div className="flex items-start justify-between gap-3">
-                    <button
-                      type="button"
-                      className="text-left"
-                      onClick={() => setLocation(`/exercise/${resolvedDay.id}/${activeExercise.id}`)}
-                    >
-                      <p className="text-base font-semibold">{activeExercise.name}</p>
-                      <p className="text-[11px] text-muted-foreground">
-                        {activeExercise.sets.length} x {activeTargetReps} • {activeExercise.muscleGroup || "Full Body"}
-                      </p>
-                    </button>
+                    <div className="space-y-2">
+                      <button
+                        type="button"
+                        className="text-left"
+                        onClick={() => setLocation(`/exercise/${resolvedDay.id}/${activeExercise.id}`)}
+                      >
+                        <p className="text-base font-semibold">{activeExercise.name}</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {activeExercise.sets.length} x {activeTargetReps} • {activeExercise.muscleGroup || "Full Body"}
+                        </p>
+                      </button>
+                      <div className="flex flex-wrap gap-2">
+                        <Badge variant="secondary" className="text-[10px]">
+                          {Math.max(activeSwapOptions.length - 1, 0)} swap options
+                        </Badge>
+                        {activeExercise.swapReason && (
+                          <Badge variant="outline" className="text-[10px]">
+                            Swapped today
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
                     <div className="text-right text-[11px] text-muted-foreground">
                       <div>Last</div>
                       <div className="font-mono text-sm text-foreground">
                         {activeLastWeight ?? "--"} {unitLabel}
                       </div>
                     </div>
+                  </div>
+
+                  <div className="rounded-xl border border-border/60 bg-muted/20 p-3 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          Need another option?
+                        </p>
+                        <p className="mt-1 text-sm">
+                          Keep this slot, sets, and progress. Swap only the movement.
+                        </p>
+                        {activePrimaryExercise && activeExercise.name !== activePrimaryExercise.name && (
+                          <p className="mt-1 text-[11px] text-muted-foreground">
+                            Original movement: {activePrimaryExercise.name}
+                          </p>
+                        )}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-10 shrink-0"
+                        onClick={() => setSwapSheetOpen(true)}
+                      >
+                        <ArrowRightLeft className="mr-2 h-4 w-4" />
+                        Find swap
+                      </Button>
+                    </div>
+                    {activeExercise.swapReason && (
+                      <div className="flex items-center justify-between rounded-lg bg-background px-3 py-2 text-[11px] text-muted-foreground">
+                        <span>Why this swap</span>
+                        <span className="font-medium text-foreground">{activeExercise.swapReason}</span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -716,6 +831,103 @@ export default function Session() {
               </Card>
             </div>
           )}
+
+          <Sheet open={swapSheetOpen} onOpenChange={setSwapSheetOpen}>
+            <SheetContent side="bottom" className="max-h-[85vh] rounded-t-[24px] px-0 pb-0">
+              <SheetHeader className="px-4 pb-0">
+                <SheetTitle>Swap exercise</SheetTitle>
+                <SheetDescription>
+                  Search alternatives for this slot. Logged sets stay with the current exercise position.
+                </SheetDescription>
+              </SheetHeader>
+
+              <div className="px-4 pb-4 pt-3">
+                <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
+                  <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                    Current slot
+                  </div>
+                  <div className="mt-1 flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold">{activeExercise?.name ?? "Exercise"}</div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {activeExercise?.muscleGroup || activePrimaryExercise?.muscleGroup || "Full Body"}
+                      </div>
+                    </div>
+                    {activeExercise && activePrimaryExercise && activeExercise.name !== activePrimaryExercise.name && (
+                      <Badge variant="outline" className="text-[10px]">
+                        From {activePrimaryExercise.name}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+
+                <div className="relative mt-3">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={swapQuery}
+                    onChange={(event) => setSwapQuery(event.target.value)}
+                    placeholder="Search by exercise, reason, or muscle group"
+                    className="pl-9"
+                  />
+                </div>
+              </div>
+
+              <ScrollArea className="h-[52vh] px-4 pb-6">
+                <div className="space-y-2 pb-6">
+                  {filteredSwapOptions.length === 0 && (
+                    <div className="rounded-xl border border-dashed border-border/60 px-4 py-6 text-center text-sm text-muted-foreground">
+                      No matching swap options.
+                    </div>
+                  )}
+                  {filteredSwapOptions.map((option) => (
+                    <button
+                      key={option.id || option.name}
+                      type="button"
+                      className={cn(
+                        "w-full rounded-2xl border px-4 py-3 text-left transition-colors",
+                        option.isCurrent
+                          ? "border-primary/40 bg-primary/10"
+                          : "border-border/60 bg-card hover:bg-muted/40",
+                      )}
+                      onClick={() => handleSwapSelection(option)}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold">{option.name}</span>
+                            {option.isCurrent && (
+                              <Badge className="h-5 text-[10px]">Current</Badge>
+                            )}
+                            {option.isOriginal && !option.isCurrent && (
+                              <Badge variant="outline" className="h-5 text-[10px]">
+                                Original
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="mt-1 text-[11px] text-muted-foreground">
+                            {option.muscleGroup || "Full Body"}
+                          </div>
+                          <div className="mt-2 text-xs text-muted-foreground">
+                            {option.reason || "Alternative movement for the same slot"}
+                          </div>
+                        </div>
+                        <div
+                          className={cn(
+                            "mt-1 flex h-8 w-8 items-center justify-center rounded-full border",
+                            option.isCurrent
+                              ? "border-primary/30 bg-primary/15 text-primary"
+                              : "border-border/60 text-muted-foreground",
+                          )}
+                        >
+                          <Check className="h-4 w-4" />
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </ScrollArea>
+            </SheetContent>
+          </Sheet>
 
         {/* Run / Cardio Section */}
         {(resolvedDay.type === "run" || resolvedDay.runTarget) && (

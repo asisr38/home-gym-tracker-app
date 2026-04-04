@@ -96,6 +96,7 @@ export default function Register() {
                 placeholder="you@example.com"
                 className="bg-muted/50"
                 autoComplete="email"
+                inputMode="email"
                 required
               />
             </div>
