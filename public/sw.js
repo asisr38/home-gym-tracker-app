@@ -1,12 +1,22 @@
-const CACHE_NAME = "ironstride-v1";
-const STATIC_PATTERNS = [/^\/_next\/static\//, /^\/icons\//, /^\/fonts\//];
+const CACHE_NAME = "ironstride-v2";
+const STATIC_PATTERNS = [/^\/icons\//, /^\/fonts\//];
 const API_PATTERN = /^\/api\//;
+const APP_SHELL_PATHS = ["/", "/login", "/register"];
+
+const cacheIfSuccessful = async (cache, request, response) => {
+  if (!response || !response.ok || response.type === "error") {
+    return response;
+  }
+
+  cache.put(request, response.clone());
+  return response;
+};
 
 // On install: cache the app shell pages
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) =>
-      cache.addAll(["/", "/login", "/register"])
+      cache.addAll(APP_SHELL_PATHS)
     )
   );
   self.skipWaiting();
@@ -39,32 +49,33 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Static Next.js assets: cache-first (immutable hashed filenames)
+  // App-owned static assets: cache-first.
+  // Next.js manages its own chunk caching headers; intercepting /_next/static/
+  // here can pin stale route chunks across reloads and deploys.
   if (STATIC_PATTERNS.some((p) => p.test(path))) {
     event.respondWith(
-      caches.match(request).then(
-        (cached) =>
-          cached ||
-          fetch(request).then((res) => {
-            const clone = res.clone();
-            caches.open(CACHE_NAME).then((c) => c.put(request, clone));
-            return res;
-          })
-      )
+      caches.match(request).then(async (cached) => {
+        if (cached) return cached;
+
+        const cache = await caches.open(CACHE_NAME);
+        const response = await fetch(request);
+        return cacheIfSuccessful(cache, request, response);
+      })
     );
     return;
   }
 
-  // HTML navigation: stale-while-revalidate
+  // HTML navigation: network-first with cache fallback.
+  // Serving stale HTML first can reference removed route chunks after a deploy.
   if (request.headers.get("accept")?.includes("text/html")) {
     event.respondWith(
       caches.open(CACHE_NAME).then(async (cache) => {
-        const cached = await cache.match(request);
-        const fetchPromise = fetch(request).then((res) => {
-          cache.put(request, res.clone());
-          return res;
-        });
-        return cached || fetchPromise;
+        try {
+          const response = await fetch(request);
+          return cacheIfSuccessful(cache, request, response);
+        } catch {
+          return cache.match(request) || cache.match("/");
+        }
       })
     );
   }

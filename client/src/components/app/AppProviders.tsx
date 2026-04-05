@@ -7,11 +7,33 @@ import { AuthProvider } from "@/lib/auth";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
+const APP_CACHE_PREFIX = "ironstride-";
+
 function ServiceWorkerRegistration() {
   useEffect(() => {
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
-    navigator.serviceWorker.register("/sw.js").catch(() => {
-      // SW registration is best-effort; failure is non-fatal
+
+    const syncServiceWorker = async () => {
+      if (process.env.NODE_ENV !== "production") {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map((registration) => registration.unregister()));
+
+        if ("caches" in window) {
+          const cacheKeys = await caches.keys();
+          await Promise.all(
+            cacheKeys
+              .filter((key) => key.startsWith(APP_CACHE_PREFIX))
+              .map((key) => caches.delete(key)),
+          );
+        }
+        return;
+      }
+
+      await navigator.serviceWorker.register("/sw.js");
+    };
+
+    syncServiceWorker().catch(() => {
+      // SW registration/cleanup is best-effort; failure is non-fatal
     });
   }, []);
   return null;

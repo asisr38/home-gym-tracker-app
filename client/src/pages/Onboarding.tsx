@@ -50,6 +50,25 @@ const GOAL_OPTIONS = [
   { value: "balanced",    label: "Balanced",      description: "Mix of strength & size",    icon: "⚖️" },
 ] as const;
 
+const STEP_CONTENT = [
+  {
+    title: "About you",
+    description: "These basics drive units, profile copy, and the numbers shown across the app.",
+  },
+  {
+    title: "Goal & equipment",
+    description: "Tell IronStride what you're training for and what gear you actually have access to.",
+  },
+  {
+    title: "Choose your split",
+    description: "Pick the weekly structure that feels realistic. You can always change it later.",
+  },
+  {
+    title: "Finish setup",
+    description: "Add recovery preferences so the app can make the day-to-day flow feel more personal.",
+  },
+] as const;
+
 function StepIndicator({ current }: { current: number }) {
   return (
     <div className="mb-8 flex items-center gap-2">
@@ -94,6 +113,9 @@ export default function Onboarding() {
   const goalType = watch("goalType");
   const splitType = watch("splitType");
   const selectedEquipment = watch("equipment");
+  const currentStepContent = STEP_CONTENT[step];
+  const selectedSplit = SPLIT_OPTIONS.find((option) => option.value === splitType);
+  const selectedEquipmentCount = new Set<Equipment>(["bodyweight", ...selectedEquipment]).size;
 
   const toggleEquipment = (value: Equipment) => {
     if (value === "bodyweight") return;
@@ -156,14 +178,34 @@ export default function Onboarding() {
 
         <SurfaceCard tone="primary" className="mt-5 p-5">
           <StepIndicator current={step} />
+          <div className="mb-6 space-y-3 rounded-[1.4rem] border border-border/60 bg-background/34 p-4">
+            <div className="space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                {currentStepContent.title}
+              </p>
+              <p className="text-sm leading-6 text-muted-foreground">
+                {currentStepContent.description}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <MetricPill>{units === "imperial" ? "Imperial" : "Metric"}</MetricPill>
+              <MetricPill tone="primary">{goalType.replace("_", " ")}</MetricPill>
+              <MetricPill tone="default">
+                {selectedEquipmentCount} equipment options
+              </MetricPill>
+            </div>
+          </div>
 
           <form onSubmit={form.handleSubmit(onSubmit)}>
 
           {/* ── Step 0: Basics ── */}
           {step === 0 && (
             <div className="space-y-5 animate-in fade-in slide-in-from-right-4 duration-300">
-              <div>
-                <h2 className="text-xl font-semibold mb-4">About you</h2>
+              <div className="space-y-1">
+                <h2 className="text-xl font-semibold">About you</h2>
+                <p className="text-sm text-muted-foreground">
+                  Start with the stats that shape every weight, distance, and recommendation label.
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -208,7 +250,12 @@ export default function Onboarding() {
           {/* ── Step 1: Goal + Equipment ── */}
           {step === 1 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-              <h2 className="text-xl font-semibold">Your goal & equipment</h2>
+              <div className="space-y-1">
+                <h2 className="text-xl font-semibold">Your goal & equipment</h2>
+                <p className="text-sm text-muted-foreground">
+                  Keep this honest. The best plan is the one you can actually run every week.
+                </p>
+              </div>
 
               <div className="space-y-2">
                 <Label>Primary Goal</Label>
@@ -274,7 +321,9 @@ export default function Onboarding() {
             <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
               <div>
                 <h2 className="text-xl font-semibold">Choose your split</h2>
-                <p className="text-sm text-muted-foreground mt-1">Your weekly workout structure. You can change this later.</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Your weekly workout structure. Choose the cadence you can recover from consistently.
+                </p>
               </div>
 
               <div className="space-y-3">
@@ -329,7 +378,12 @@ export default function Onboarding() {
           {/* ── Step 3: Preferences ── */}
           {step === 3 && (
             <div className="space-y-5 animate-in fade-in slide-in-from-right-4 duration-300">
-              <h2 className="text-xl font-semibold">A few more details</h2>
+              <div className="space-y-1">
+                <h2 className="text-xl font-semibold">A few more details</h2>
+                <p className="text-sm text-muted-foreground">
+                  These preferences shape recovery-day prompts and make the first week feel ready to use.
+                </p>
+              </div>
 
               <div className="space-y-2">
                 <Label>Start of Week</Label>
@@ -373,11 +427,18 @@ export default function Onboarding() {
 
               {/* Summary card */}
               <SurfaceCard className="p-4">
-                <div className="space-y-1">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Your plan</p>
+                <div className="space-y-3">
+                  <div>
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Your plan
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      IronStride will drop you straight into Today with this setup after onboarding.
+                    </p>
+                  </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Split</span>
-                    <span className="font-medium">{SPLIT_OPTIONS.find((o) => o.value === splitType)?.label}</span>
+                    <span className="font-medium">{selectedSplit?.label}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Goal</span>
@@ -385,7 +446,13 @@ export default function Onboarding() {
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Equipment</span>
-                    <span className="font-medium">{selectedEquipment.length} items</span>
+                    <span className="font-medium">{selectedEquipmentCount} items</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Recovery cardio</span>
+                    <span className="font-medium">
+                      {watch("dailyRunTarget")} {units === "imperial" ? "mi" : "km"}
+                    </span>
                   </div>
                 </div>
               </SurfaceCard>
@@ -406,7 +473,7 @@ export default function Onboarding() {
               </Button>
             ) : (
               <Button type="submit" className="flex-1 h-12 text-base font-semibold">
-                Start Training
+                Build My Plan
                 <ArrowRight className="h-4 w-4" />
               </Button>
             )}

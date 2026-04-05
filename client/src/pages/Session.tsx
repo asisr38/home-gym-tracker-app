@@ -7,6 +7,16 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Sheet,
   SheetContent,
   SheetDescription,
@@ -22,6 +32,7 @@ import {
   Clock3,
   Dumbbell,
   Flame,
+  Flag,
   Search,
   Target,
   Timer,
@@ -109,18 +120,41 @@ export default function Session() {
   const [restComplete, setRestComplete] = useState(false);
   const [swapSheetOpen, setSwapSheetOpen] = useState(false);
   const [swapQuery, setSwapQuery] = useState("");
+  const [finishDialogOpen, setFinishDialogOpen] = useState(false);
+  const [sessionStartedAt, setSessionStartedAt] = useState(() => Date.now());
+  const [sessionElapsedSeconds, setSessionElapsedSeconds] = useState(0);
   const notesHydratedRef = useRef(false);
   const runDraftHydratedRef = useRef(false);
 
   useEffect(() => {
     setLogInputs({});
-    setActiveExerciseIndex(0);
+    const initialExerciseIndex =
+      resolvedDay?.type === "lift"
+        ? Math.max(
+            resolvedDay.exercises.findIndex((exercise) =>
+              exercise.sets.some((set) => !set.completed),
+            ),
+            0,
+          )
+        : 0;
+    setActiveExerciseIndex(initialExerciseIndex);
     setRestRemaining(null);
     setRestRunning(false);
     setRestComplete(false);
     setSwapSheetOpen(false);
     setSwapQuery("");
+    setFinishDialogOpen(false);
+    setSessionStartedAt(Date.now());
+    setSessionElapsedSeconds(0);
   }, [resolvedDay?.id]);
+
+  useEffect(() => {
+    const timerId = window.setInterval(() => {
+      setSessionElapsedSeconds(Math.max(0, Math.floor((Date.now() - sessionStartedAt) / 1000)));
+    }, 1000);
+
+    return () => window.clearInterval(timerId);
+  }, [sessionStartedAt]);
 
   useEffect(() => {
     if (!resolvedDay) return;
@@ -245,6 +279,16 @@ export default function Session() {
   const formatRestTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  const formatElapsedTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    const hours = Math.floor(mins / 60);
+    if (hours > 0) {
+      return `${hours}:${String(mins % 60).padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+    }
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
@@ -413,10 +457,25 @@ export default function Session() {
     setLocation("/");
   };
 
+  const handleFinishPress = () => {
+    const shouldConfirmEarlyFinish =
+      resolvedDay.type === "lift" &&
+      totalSets > 0 &&
+      completedSets < totalSets;
+
+    if (shouldConfirmEarlyFinish) {
+      setFinishDialogOpen(true);
+      return;
+    }
+
+    handleFinish();
+  };
+
   const isLegDay = resolvedDay.dayType === "legs" || resolvedDay.title.toLowerCase().includes("leg") || resolvedDay.title.toLowerCase().includes("lower");
   const completedExercises = resolvedDay.exercises.filter((exercise) =>
     exercise.sets.every((set) => set.completed),
   ).length;
+  const remainingSets = Math.max(totalSets - completedSets, 0);
   const safeExerciseIndex =
     resolvedDay.type === "lift" && resolvedDay.exercises.length
       ? Math.min(activeExerciseIndex, resolvedDay.exercises.length - 1)
@@ -467,9 +526,17 @@ export default function Session() {
   const activeCompletedSets = activeExercise
     ? activeExercise.sets.filter((set) => set.completed).length
     : 0;
+  const activeRemainingSets = activeExercise
+    ? Math.max(activeExercise.sets.length - activeCompletedSets, 0)
+    : 0;
+  const activeExerciseDone = activeExercise ? activeRemainingSets === 0 : false;
   const activeExerciseProgress = activeExercise?.sets.length
     ? (activeCompletedSets / activeExercise.sets.length) * 100
     : 0;
+  const nextIncompleteExercise =
+    resolvedDay.type === "lift"
+      ? resolvedDay.exercises.find((exercise) => exercise.sets.some((set) => !set.completed)) ?? null
+      : null;
 
   const handleSwapSelection = (option: ExerciseSwapOption) => {
     if (!activeExercise || option.isCurrent) return;
@@ -512,7 +579,7 @@ export default function Session() {
               <p className="text-eyebrow">Session</p>
               <h2 className="truncate text-sm font-semibold tracking-[0.02em]">{resolvedDay.title}</h2>
             </div>
-            <Button size="sm" onClick={handleFinish} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+            <Button size="sm" onClick={handleFinishPress} className="bg-emerald-600 hover:bg-emerald-700 text-white">
               Finish
             </Button>
           </div>
@@ -562,12 +629,43 @@ export default function Session() {
                       ? `${resolvedDay.runTarget.distance} ${profile.units === "imperial" ? "mi" : "km"} target`
                       : "Recovery day"}
                 </MetricPill>
+                <MetricPill icon={Timer}>
+                  {formatElapsedTime(sessionElapsedSeconds)}
+                </MetricPill>
                 <MetricPill icon={Clock3}>
                   {restRemaining !== null ? formatRestTime(Math.max(restRemaining, 0)) : "No rest timer"}
                 </MetricPill>
               </div>
             </div>
           </SurfaceCard>
+
+          {resolvedDay.type === "lift" && !resolvedDay.completed ? (
+            <SurfaceCard className="p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    Focus now
+                  </p>
+                  <p className="mt-1 text-sm font-medium">
+                    {nextIncompleteExercise
+                      ? `Next up: ${nextIncompleteExercise.name}`
+                      : "All exercises logged. Add notes or finish the session."}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {remainingSets > 0
+                      ? `${remainingSets} sets remaining across the session.`
+                      : "No sets left. You can finish whenever you're ready."}
+                  </p>
+                </div>
+                <div className="rounded-[1.1rem] border border-border/60 bg-background/38 px-3 py-2 text-right">
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                    Remaining
+                  </div>
+                  <div className="text-lg font-semibold">{remainingSets}</div>
+                </div>
+              </div>
+            </SurfaceCard>
+          ) : null}
 
           {restRemaining !== null && (
             <SurfaceCard tone="amber" className="p-4">
@@ -702,6 +800,9 @@ export default function Session() {
                         <Badge variant="secondary" className="text-[10px]">
                           {Math.max(activeSwapOptions.length - 1, 0)} swap options
                         </Badge>
+                        <Badge variant="outline" className="text-[10px]">
+                          {activeRemainingSets} sets left
+                        </Badge>
                         {activeExercise.swapReason && (
                           <Badge variant="outline" className="text-[10px]">
                             Swapped today
@@ -835,9 +936,10 @@ export default function Session() {
                       <Button
                         type="button"
                         className="h-11 text-sm font-semibold"
+                        disabled={activeExerciseDone}
                         onClick={() => handleQuickLog(activeExercise.id, activeTargetReps, activeLastWeight)}
                       >
-                        Log Next Set
+                        {activeExerciseDone ? "Exercise Complete" : "Log Next Set"}
                       </Button>
                     </div>
                   </div>
@@ -1077,6 +1179,30 @@ export default function Session() {
           </SurfaceCard>
         </div>
       </div>
+
+      <AlertDialog open={finishDialogOpen} onOpenChange={setFinishDialogOpen}>
+        <AlertDialogContent className="max-w-sm rounded-[1.5rem] border-border/60 bg-card/95 backdrop-blur-xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Flag className="h-4 w-4 text-amber-300" />
+              Finish early?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              You still have {remainingSets} sets left in this workout. Finish now only if you are
+              done for the day. You can still undo completion from the toast.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep training</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-emerald-600 text-white hover:bg-emerald-700"
+              onClick={handleFinish}
+            >
+              Finish anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

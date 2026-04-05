@@ -3,6 +3,7 @@
 - Mobile-first workout tracker for home and Planet Fitness style training.
 - The current app behavior is centered on a fixed 5-day upper/lower split generated from `client/src/lib/upperLowerPlan.ts`, not a free-form workout planner.
 - Core user journey: open Today view, start the scheduled session, quick-log sets, complete the session, review weekly volume and history snapshots.
+- Auth entry screens now include expectation-setting copy, inline password guidance, and password visibility toggles so the register/login/reset flows feel lower-friction on mobile.
 - The day session flow now supports in-place exercise swaps through a searchable alternative picker, so users can keep the same slot and logged progress when equipment is unavailable or a movement feels wrong.
 
 # Architecture Notes
@@ -21,6 +22,7 @@
 - There are two server surfaces for the same persistence contract: Express routes in `server/routes.ts` and a Vercel handler in `api/user-data.ts`.
 - The Next shell now has native App Router handlers for `/api/user-data`, `/api/workouts`, `/api/workouts/history`, `/api/workouts/stats`, and `/api/body-metrics`. These handlers share the same server-side auth and persistence logic as the legacy Express routes through `server/api-core.ts`.
 - `next:dev` now runs Next directly; it no longer boots the Express API as a proxy dependency.
+- The PWA service worker is production-only. In local Next development the app unregisters any existing worker and clears `ironstride-*` caches so stale cached HTML or `/_next` chunks do not mask current route changes.
 - The default lifecycle scripts now target Next (`dev`, `build`, `start`). The old Vite/Express flow is still available as `legacy:dev`, `legacy:build`, and `legacy:start` during migration cleanup.
 - Shared source of truth for persisted data lives in `shared/userData.ts`. Store exports `schemaVersion: 2` through `getUserData()`.
 - Completed workout history is intentionally pruned to the latest 30 days on both client and server.
@@ -30,7 +32,9 @@
 
 - `currentPlan` is the active weekly template. `history` stores completed copies of workout days.
 - The Today screen maps weekdays Monday-Friday to plan days 1-5 through `client/src/lib/workout.ts`.
+- Today treats partially logged sessions as "in progress" and changes the primary CTA from start to continue when notes, run data, or completed sets already exist on the scheduled day.
 - Rest day is currently represented as a recovery/cardio entry inside the plan rather than a null schedule slot.
+- Session re-entry jumps to the first incomplete exercise, shows a live session clock, and asks for confirmation before finishing a lift day with sets still unlogged.
 - Exercise swaps preserve the original movement in `exercise.primary` and annotate the reason in `swapReason`.
 
 # Known Gaps

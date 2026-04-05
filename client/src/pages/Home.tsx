@@ -16,7 +16,13 @@ import {
 import { useLocation } from "@/lib/router";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { estimateDayMinutes, getScheduledWorkoutForDate, getWeeklyStats } from "@/lib/workout";
+import {
+  estimateDayMinutes,
+  getCompletedSetsForDay,
+  getPlannedSetsForDay,
+  getScheduledWorkoutForDate,
+  getWeeklyStats,
+} from "@/lib/workout";
 import { MetricPill, PageHeader, SectionHeading, SurfaceCard } from "@/components/ui/app-surfaces";
 import { getWorkoutVisual, getWorkoutTypeLabel } from "@/lib/day-ui";
 
@@ -36,6 +42,16 @@ export default function Home() {
   const unitLabel = profile.units === "imperial" ? "mi" : "km";
   const runDistance = nextWorkout?.runTarget?.distance;
   const exerciseCount = nextWorkout?.exercises.length ?? 0;
+  const nextWorkoutTotalSets = nextWorkout ? getPlannedSetsForDay(nextWorkout) : 0;
+  const nextWorkoutCompletedSets = nextWorkout ? getCompletedSetsForDay(nextWorkout) : 0;
+  const nextWorkoutHasDraft =
+    !!nextWorkout &&
+    !nextWorkout.completed &&
+    (
+      nextWorkoutCompletedSets > 0 ||
+      Boolean(nextWorkout.notes?.trim()) ||
+      Boolean(nextWorkout.runActual && ((nextWorkout.runActual.distance ?? 0) > 0 || (nextWorkout.runActual.timeSeconds ?? 0) > 0))
+    );
   const trainingDays = currentPlan.filter((day) => day.exercises.length > 0).length;
   const completedDays = currentPlan.filter((day) => day.completed).length;
   const heroVisual = nextWorkout
@@ -113,9 +129,13 @@ export default function Home() {
                       {nextWorkout.title}
                     </h2>
                     <p className="text-sm leading-6 text-muted-foreground">
-                      {isCardioDay
-                        ? `${runDistance ? `${runDistance} ${unitLabel}` : "Cardio target"} programmed for today.`
-                        : `${exerciseCount} movements lined up for the session.`}
+                      {nextWorkoutHasDraft
+                        ? isCardioDay
+                          ? "You already started logging today. Jump back in and finish the session."
+                          : `${nextWorkoutCompletedSets} of ${nextWorkoutTotalSets} sets logged. Resume at the next incomplete exercise.`
+                        : isCardioDay
+                          ? `${runDistance ? `${runDistance} ${unitLabel}` : "Cardio target"} programmed for today.`
+                          : `${exerciseCount} movements lined up for the session.`}
                     </p>
                   </div>
                 </div>
@@ -132,6 +152,11 @@ export default function Home() {
                 <MetricPill icon={Clock3} tone="default">
                   ~{estimatedMinutes} min
                 </MetricPill>
+                {nextWorkoutHasDraft ? (
+                  <MetricPill icon={Play} tone="emerald">
+                    In progress
+                  </MetricPill>
+                ) : null}
                 {runDistance ? (
                   <MetricPill icon={Flame} tone="default">
                     {runDistance} {unitLabel}
@@ -147,7 +172,7 @@ export default function Home() {
                     onClick={() => setLocation(`/session/${nextWorkout.id}`)}
                   >
                     <Play className="h-5 w-5" />
-                    Start Workout
+                    {nextWorkoutHasDraft ? "Continue Workout" : "Start Workout"}
                   </Button>
                 ) : (
                   <Button variant="secondary" className="w-full" disabled>
@@ -238,47 +263,72 @@ export default function Home() {
             />
             <div className="space-y-3">
               {currentPlan.slice(0, 5).map((day) => (
-                <button
-                  type="button"
-                  key={day.id} 
-                  className={cn(
-                    "w-full rounded-[1.35rem] border p-3 text-left transition-all",
-                    day.completed
-                      ? "border-primary/20 bg-primary/10"
-                      : "border-border/60 bg-card/65 hover:border-primary/20 hover:bg-card/80",
-                    day.id === nextWorkout?.id && "ring-1 ring-primary/25"
-                  )}
-                  onClick={() => setLocation(`/session/${day.id}`)}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={cn(
-                      "flex h-12 w-12 shrink-0 items-center justify-center rounded-[1rem] border text-sm font-bold",
-                      day.completed
-                        ? "border-primary/25 bg-primary text-primary-foreground"
-                        : "border-border/60 bg-background/50 text-muted-foreground"
-                    )}>
-                      {day.dayNumber}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <h4 className="truncate text-sm font-semibold">{day.title}</h4>
-                        {day.id === nextWorkout?.id ? (
-                          <span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
-                            Up next
-                          </span>
-                        ) : null}
+                (() => {
+                  const dayCompletedSets = getCompletedSetsForDay(day);
+                  const dayPlannedSets = getPlannedSetsForDay(day);
+                  const dayInProgress =
+                    !day.completed &&
+                    (
+                      dayCompletedSets > 0 ||
+                      Boolean(day.notes?.trim()) ||
+                      Boolean(day.runActual && ((day.runActual.distance ?? 0) > 0 || (day.runActual.timeSeconds ?? 0) > 0))
+                    );
+
+                  return (
+                    <button
+                      type="button"
+                      key={day.id}
+                      className={cn(
+                        "w-full rounded-[1.35rem] border p-3 text-left transition-all",
+                        day.completed
+                          ? "border-primary/20 bg-primary/10"
+                          : "border-border/60 bg-card/65 hover:border-primary/20 hover:bg-card/80",
+                        day.id === nextWorkout?.id && "ring-1 ring-primary/25"
+                      )}
+                      onClick={() => setLocation(`/session/${day.id}`)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={cn(
+                          "flex h-12 w-12 shrink-0 items-center justify-center rounded-[1rem] border text-sm font-bold",
+                          day.completed
+                            ? "border-primary/25 bg-primary text-primary-foreground"
+                            : dayInProgress
+                              ? "border-emerald-400/25 bg-emerald-500/12 text-emerald-300"
+                              : "border-border/60 bg-background/50 text-muted-foreground"
+                        )}>
+                          {day.dayNumber}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <h4 className="truncate text-sm font-semibold">{day.title}</h4>
+                            {day.id === nextWorkout?.id ? (
+                              <span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                                Up next
+                              </span>
+                            ) : null}
+                            {dayInProgress ? (
+                              <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
+                                In progress
+                              </span>
+                            ) : null}
+                          </div>
+                          <p className="mt-1 text-xs capitalize text-muted-foreground">
+                            {day.completed
+                              ? "Completed"
+                              : dayInProgress && day.type === "lift"
+                                ? `${dayCompletedSets}/${dayPlannedSets} sets logged`
+                                : getWorkoutTypeLabel(day.dayType, day.type)}
+                          </p>
+                        </div>
+                        {day.completed ? (
+                          <Trophy className="h-4 w-4 text-primary" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        )}
                       </div>
-                      <p className="mt-1 text-xs capitalize text-muted-foreground">
-                        {day.completed ? "Completed" : getWorkoutTypeLabel(day.dayType, day.type)}
-                      </p>
-                    </div>
-                    {day.completed ? (
-                      <Trophy className="h-4 w-4 text-primary" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </div>
-                </button>
+                    </button>
+                  );
+                })()
               ))}
             </div>
           </div>
