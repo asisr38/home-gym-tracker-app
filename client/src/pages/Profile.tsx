@@ -1,4 +1,4 @@
-import { useStore } from "@/lib/store";
+import { useStore, type SplitType } from "@/lib/store";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -20,15 +20,18 @@ import { useAuth } from "@/lib/auth";
 import { Switch } from "@/components/ui/switch";
 import { ToastAction } from "@/components/ui/toast";
 import { useLocation } from "@/lib/router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { MetricPill, PageHeader, SectionHeading, SurfaceCard } from "@/components/ui/app-surfaces";
+import { SPLIT_OPTIONS } from "@/lib/planBuilder";
+import { cn } from "@/lib/utils";
 
 export default function Profile() {
-  const { profile, exportData, importData, resetPlan, restorePlan } = useStore();
+  const { profile, exportData, importData, resetPlan, restorePlan, updateProfile } = useStore();
   const { user, signOutUser } = useAuth();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [signingOut, setSigningOut] = useState(false);
+  const [selectedSplit, setSelectedSplit] = useState<SplitType>(profile.splitType ?? "upper_lower");
   const isSignedOut = !user;
   const accountLabel = user?.email || "Not signed in";
   const cloudSyncDescription = user
@@ -41,6 +44,14 @@ export default function Profile() {
     fat_loss: "Fat Loss",
     balanced: "Balanced",
   };
+  const currentSplit = profile.splitType ?? "upper_lower";
+  const currentSplitOption =
+    SPLIT_OPTIONS.find((option) => option.value === currentSplit) ?? SPLIT_OPTIONS[0];
+  const hasPendingSplitChange = selectedSplit !== currentSplit;
+
+  useEffect(() => {
+    setSelectedSplit(currentSplit);
+  }, [currentSplit]);
 
   const handleExport = () => {
     const data = exportData();
@@ -76,6 +87,35 @@ export default function Profile() {
       description: "Your plan was reset to Day 1.",
       action: (
         <ToastAction altText="Undo reset" onClick={() => restorePlan(previousPlan)}>
+          Undo
+        </ToastAction>
+      ),
+    });
+  };
+
+  const handleApplySplit = () => {
+    if (!hasPendingSplitChange) return;
+
+    const previousPlan = useStore.getState().currentPlan;
+    const previousSplit = currentSplit;
+    const nextSplitOption =
+      SPLIT_OPTIONS.find((option) => option.value === selectedSplit) ?? SPLIT_OPTIONS[0];
+
+    updateProfile({ splitType: selectedSplit });
+    resetPlan();
+
+    toast({
+      title: "Split updated",
+      description: `Your current week was rebuilt as ${nextSplitOption.label}. History stayed saved.`,
+      action: (
+        <ToastAction
+          altText="Undo split change"
+          onClick={() => {
+            updateProfile({ splitType: previousSplit });
+            restorePlan(previousPlan);
+            setSelectedSplit(previousSplit);
+          }}
+        >
           Undo
         </ToastAction>
       ),
@@ -158,6 +198,91 @@ export default function Profile() {
                 {profile.nutritionTarget || "Not set"}
               </div>
             </div>
+          </div>
+        </SurfaceCard>
+
+        <SectionHeading
+          icon={Target}
+          title="Training Setup"
+          description="Change your split after onboarding and regenerate the active weekly plan."
+        />
+
+        <SurfaceCard className="p-5">
+          <div className="space-y-4">
+            <div className="rounded-[1.2rem] border border-border/60 bg-background/38 p-4">
+              <div className="text-xs text-muted-foreground">Current split</div>
+              <div className="mt-2 flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold">{currentSplitOption.label}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    {currentSplitOption.frequency}
+                  </div>
+                </div>
+                <span className="rounded-full border border-border/60 bg-muted/45 px-3 py-1.5 text-[11px] font-semibold text-muted-foreground">
+                  {currentSplitOption.bestFor}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {SPLIT_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setSelectedSplit(option.value)}
+                  className={cn(
+                    "w-full rounded-xl border p-4 text-left transition-all",
+                    selectedSplit === option.value
+                      ? "border-primary bg-primary/10"
+                      : "border-border/60 bg-muted/20 hover:border-primary/40",
+                  )}
+                >
+                  <div className="mb-2 flex items-start justify-between">
+                    <div>
+                      <p className="text-sm font-semibold">{option.label}</p>
+                      <p className="text-xs text-muted-foreground">{option.frequency}</p>
+                    </div>
+                    <span
+                      className={cn(
+                        "rounded-full border px-2 py-0.5 text-[10px] font-medium",
+                        selectedSplit === option.value
+                          ? "border-primary text-primary"
+                          : "border-border/60 text-muted-foreground",
+                      )}
+                    >
+                      {option.bestFor}
+                    </span>
+                  </div>
+                  <p className="mb-3 text-xs text-muted-foreground">{option.description}</p>
+                  <div className="flex flex-wrap gap-1">
+                    {option.schedule.map((day, index) => (
+                      <span
+                        key={`${option.value}-${index}`}
+                        className={cn(
+                          "rounded px-2 py-0.5 text-[10px] font-medium",
+                          day === "Rest"
+                            ? "bg-muted text-muted-foreground"
+                            : selectedSplit === option.value
+                              ? "bg-primary/20 text-primary"
+                              : "bg-muted/60 text-foreground/70",
+                        )}
+                      >
+                        {day}
+                      </span>
+                    ))}
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <div className="rounded-[1.2rem] border border-border/60 bg-background/38 p-4 text-xs leading-5 text-muted-foreground">
+              Applying a new split rebuilds the current week from your latest goal and equipment settings.
+              Completed history stays saved.
+            </div>
+
+            <Button className="w-full" disabled={!hasPendingSplitChange} onClick={handleApplySplit}>
+              Apply Split Change
+            </Button>
           </div>
         </SurfaceCard>
 

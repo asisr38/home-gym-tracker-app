@@ -337,6 +337,38 @@ export default function Session() {
     }));
   };
 
+  const adjustQuickReps = (
+    exerciseId: string,
+    fallbackWeight?: number,
+    fallbackReps?: number | null,
+    delta = 0,
+  ) => {
+    setLogInputs((prev) => {
+      const current = prev[exerciseId]?.reps ?? (fallbackReps?.toString() ?? "");
+      const parsed = parseFloat(current || "0");
+      const base = Number.isNaN(parsed) ? 0 : parsed;
+      const nextValue = Math.max(0, base + delta);
+      return {
+        ...prev,
+        [exerciseId]: {
+          weight: prev[exerciseId]?.weight ?? (fallbackWeight?.toString() ?? ""),
+          reps: nextValue ? nextValue.toString() : "",
+        },
+      };
+    });
+  };
+
+  const setQuickReps = (exerciseId: string, value: number, fallbackWeight?: number) => {
+    const nextValue = Math.max(0, value);
+    setLogInputs((prev) => ({
+      ...prev,
+      [exerciseId]: {
+        weight: prev[exerciseId]?.weight ?? (fallbackWeight?.toString() ?? ""),
+        reps: nextValue ? nextValue.toString() : "",
+      },
+    }));
+  };
+
   const handleQuickLog = (
     exerciseId: string,
     targetReps: string,
@@ -541,6 +573,14 @@ export default function Session() {
       : [activeSuggestedWeight - weightStep, activeSuggestedWeight, activeSuggestedWeight + weightStep]
           .filter((value) => value > 0)
           .map((value) => Number(value.toFixed(2)));
+  const repsSuggestions = Array.from(
+    new Set(
+      (activeSuggestedReps === null || activeSuggestedReps === undefined
+        ? [8, 10, 12]
+        : [activeSuggestedReps - 2, activeSuggestedReps, activeSuggestedReps + 2]
+      ).filter((value) => value > 0),
+    ),
+  );
   const activeCompletedSets = activeExercise
     ? activeExercise.sets.filter((set) => set.completed).length
     : 0;
@@ -951,7 +991,22 @@ export default function Session() {
                         </Button>
                       ))}
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-4 items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-11"
+                        onClick={() =>
+                          adjustQuickReps(
+                            activeExercise.id,
+                            activeSuggestedWeight,
+                            activeSuggestedReps,
+                            -1,
+                          )
+                        }
+                      >
+                        -
+                      </Button>
                       <Input
                         type="number"
                         inputMode="numeric"
@@ -963,11 +1018,42 @@ export default function Session() {
                             [activeExercise.id]: { ...activeInputs, reps: e.target.value },
                           }))
                         }
-                        className="h-11 text-sm"
+                        className="col-span-2 h-11 text-sm"
                       />
                       <Button
                         type="button"
-                        className="h-11 text-sm font-semibold"
+                        variant="outline"
+                        className="h-11"
+                        onClick={() =>
+                          adjustQuickReps(
+                            activeExercise.id,
+                            activeSuggestedWeight,
+                            activeSuggestedReps,
+                            1,
+                          )
+                        }
+                      >
+                        +
+                      </Button>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {repsSuggestions.map((value) => (
+                        <Button
+                          key={value}
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8"
+                          onClick={() => setQuickReps(activeExercise.id, value, activeSuggestedWeight)}
+                        >
+                          {value} reps
+                        </Button>
+                      ))}
+                    </div>
+                    <div>
+                      <Button
+                        type="button"
+                        className="h-11 w-full text-sm font-semibold"
                         disabled={activeExerciseDone}
                         onClick={() =>
                           handleQuickLog(
@@ -980,6 +1066,14 @@ export default function Session() {
                       >
                         {activeExerciseDone ? "Exercise Complete" : "Log Next Set"}
                       </Button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="rounded-lg border border-border/60 bg-muted/15 px-3 py-2 text-[11px] text-muted-foreground">
+                        Start from your last best and tap `+` when it moves easily.
+                      </div>
+                      <div className="rounded-lg border border-border/60 bg-muted/15 px-3 py-2 text-[11px] text-muted-foreground">
+                        Presets keep logging fast when you repeat the same working reps.
+                      </div>
                     </div>
                   </div>
 
