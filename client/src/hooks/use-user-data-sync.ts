@@ -12,6 +12,7 @@ import {
 
 const API_PATH = "/api/user-data";
 const CLOUD_SYNC_UNAVAILABLE_STATUS = 503;
+const USER_DATA_SYNC_TIMEOUT_MS = 4000;
 
 const selectSyncData = (state: ReturnType<typeof useStore.getState>) => ({
   profile: state.profile,
@@ -42,12 +43,13 @@ async function getToken() {
   return session?.access_token ?? null;
 }
 
-async function fetchUserDataFromApi() {
+async function fetchUserDataFromApi(signal?: AbortSignal) {
   const token = await getToken();
   if (!token) throw new UserDataSyncError("Not authenticated", 401);
 
   const res = await fetch(API_PATH, {
     headers: { Authorization: `Bearer ${token}` },
+    signal,
   });
 
   if (res.status === 204) return null;
@@ -58,6 +60,22 @@ async function fetchUserDataFromApi() {
 
   const data = await res.json();
   return userDataSchema.parse(data);
+}
+
+async function fetchUserDataFromApiWithTimeout() {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), USER_DATA_SYNC_TIMEOUT_MS);
+
+  try {
+    return await fetchUserDataFromApi(controller.signal);
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new UserDataSyncError("User data sync timed out.");
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 }
 
 async function saveUserDataToApi(data: UserData) {
@@ -110,10 +128,13 @@ export function useUserDataSync(user: User | null) {
       const hasLocalUserState = hasPersistedUserState(user.id);
       setActiveUserId(user.id);
       await rehydrateStore();
+      if (!cancelled && hasLocalUserState) {
+        setReadyUserId(user.id);
+      }
 
       try {
         bootstrappingRef.current = true;
-        const remoteData = await fetchUserDataFromApi();
+        const remoteData = await fetchUserDataFromApiWithTimeout();
         if (cancelled) return;
 
         setSyncEnabled(true);

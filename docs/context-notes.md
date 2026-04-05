@@ -23,6 +23,7 @@
 - The Next shell now has native App Router handlers for `/api/user-data`, `/api/workouts`, `/api/workouts/history`, `/api/workouts/stats`, and `/api/body-metrics`. These handlers share the same server-side auth and persistence logic as the legacy Express routes through `server/api-core.ts`.
 - `next:dev` now runs Next directly; it no longer boots the Express API as a proxy dependency.
 - The PWA service worker is production-only. In local Next development the app unregisters any existing worker and clears `ironstride-*` caches so stale cached HTML or `/_next` chunks do not mask current route changes.
+- Route gating only blocks on cloud user-data sync when an authenticated session has no usable local snapshot yet. Public guest routes render immediately, and authenticated sync falls back after a short timeout so local-first state is not hidden behind an indefinite loading screen.
 - The default lifecycle scripts now target Next (`dev`, `build`, `start`). The old Vite/Express flow is still available as `legacy:dev`, `legacy:build`, and `legacy:start` during migration cleanup.
 - Shared source of truth for persisted data lives in `shared/userData.ts`. Store exports `schemaVersion: 2` through `getUserData()`.
 - Completed workout history is intentionally pruned to the latest 30 days on both client and server.

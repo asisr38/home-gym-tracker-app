@@ -32,9 +32,10 @@ export function RouteGate({
   const onboardingCompleted = useStore((state) => state.profile.onboardingCompleted);
   const { ready } = useUserDataSync(user);
   const authenticatedHomePath = getAuthenticatedHomePath(onboardingCompleted);
+  const waitingForUserSync = Boolean(user) && !ready;
 
   useEffect(() => {
-    if (loading || !ready) return;
+    if (loading || waitingForUserSync) return;
 
     if (mode === "public" && user) {
       if (pathname !== authenticatedHomePath) {
@@ -69,9 +70,10 @@ export function RouteGate({
     ready,
     router,
     user,
+    waitingForUserSync,
   ]);
 
-  if (loading || !ready) {
+  if (loading || waitingForUserSync) {
     return <LoadingScreen />;
   }
 
