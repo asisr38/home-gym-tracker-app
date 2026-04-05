@@ -42,7 +42,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
 import { ToastAction } from "@/components/ui/toast";
-import { getLastWeekBestForExercise } from "@/lib/progression";
+import { getBestSetForExercise, getLastWeekBestForExercise } from "@/lib/progression";
 import { getExerciseSwapOptions, getPrimaryExercise, type ExerciseSwapOption } from "@/lib/exercise-alternatives";
 import { MetricPill, SurfaceCard } from "@/components/ui/app-surfaces";
 import { getWorkoutTypeLabel, getWorkoutVisual } from "@/lib/day-ui";
@@ -305,7 +305,12 @@ export default function Session() {
   const unitLabel = profile.units === "imperial" ? "lbs" : "kg";
   const weightStep = profile.units === "imperial" ? 5 : 2.5;
 
-  const adjustQuickWeight = (exerciseId: string, fallbackWeight?: number, delta = 0) => {
+  const adjustQuickWeight = (
+    exerciseId: string,
+    fallbackWeight?: number,
+    fallbackReps?: number | null,
+    delta = 0,
+  ) => {
     setLogInputs((prev) => {
       const current = prev[exerciseId]?.weight ?? (fallbackWeight?.toString() ?? "");
       const parsed = parseFloat(current || "0");
@@ -315,38 +320,45 @@ export default function Session() {
         ...prev,
         [exerciseId]: {
           weight: nextValue ? nextValue.toString() : "",
-          reps: prev[exerciseId]?.reps ?? "",
+          reps: prev[exerciseId]?.reps ?? (fallbackReps?.toString() ?? ""),
         },
       };
     });
   };
 
-  const setQuickWeight = (exerciseId: string, value: number) => {
+  const setQuickWeight = (exerciseId: string, value: number, fallbackReps?: number | null) => {
     const nextValue = Math.max(0, value);
     setLogInputs((prev) => ({
       ...prev,
       [exerciseId]: {
         weight: nextValue ? nextValue.toString() : "",
-        reps: prev[exerciseId]?.reps ?? "",
+        reps: prev[exerciseId]?.reps ?? (fallbackReps?.toString() ?? ""),
       },
     }));
   };
 
-  const handleQuickLog = (exerciseId: string, targetReps: string, fallbackWeight?: number) => {
+  const handleQuickLog = (
+    exerciseId: string,
+    targetReps: string,
+    fallbackWeight?: number,
+    fallbackReps?: number | null,
+  ) => {
     const input = logInputs[exerciseId] || {
       weight: fallbackWeight !== undefined ? fallbackWeight.toString() : "",
-      reps: "",
+      reps: fallbackReps?.toString() ?? "",
     };
-    const fallbackReps = parseTargetReps(targetReps);
+    const parsedFallbackReps = parseTargetReps(targetReps);
     const rawWeight = input.weight.trim() === "" ? null : parseFloat(input.weight);
     const rawReps =
-      input.reps.trim() === "" && fallbackReps !== null ? fallbackReps : parseFloat(input.reps);
+      input.reps.trim() === "" && parsedFallbackReps !== null
+        ? parsedFallbackReps
+        : parseFloat(input.reps);
     const weightValue = rawWeight === null || Number.isNaN(rawWeight) ? null : rawWeight;
     const repsValue = rawReps === null || Number.isNaN(rawReps) ? null : rawReps;
     logWorkoutSet(resolvedDay.id, exerciseId, { weight: weightValue, reps: repsValue });
     setLogInputs((prev) => ({
       ...prev,
-      [exerciseId]: { weight: input.weight, reps: "" },
+      [exerciseId]: { weight: input.weight, reps: input.reps },
     }));
     startRestTimer();
 
@@ -489,6 +501,10 @@ export default function Session() {
         : null,
     [activeExercise, history, profile.startOfWeek],
   );
+  const activeBestSet = useMemo(
+    () => (activeExercise ? getBestSetForExercise(history, activeExercise.name) : null),
+    [activeExercise, history],
+  );
   const activePrimaryExercise = useMemo(
     () => (activeExercise ? getPrimaryExercise(activeExercise) : null),
     [activeExercise],
@@ -507,20 +523,22 @@ export default function Session() {
     );
   }, [activeSwapOptions, swapQuery]);
   const activeTargetReps = activeExercise?.sets[0]?.targetReps ?? "8-12";
+  const activeSuggestedWeight = activeBestSet?.weight ?? activeLastWeight;
+  const activeSuggestedReps = activeBestSet?.reps ?? parseTargetReps(activeTargetReps);
   const activeInputs =
     activeExercise
       ? logInputs[activeExercise.id] || {
           weight:
-            activeLastWeight === null || activeLastWeight === undefined
+            activeSuggestedWeight === null || activeSuggestedWeight === undefined
               ? ""
-              : activeLastWeight.toString(),
-          reps: "",
+              : activeSuggestedWeight.toString(),
+          reps: activeSuggestedReps?.toString() ?? "",
         }
       : { weight: "", reps: "" };
   const weightSuggestions =
-    activeLastWeight === null || activeLastWeight === undefined
+    activeSuggestedWeight === null || activeSuggestedWeight === undefined
       ? [weightStep, weightStep * 2, weightStep * 3]
-      : [activeLastWeight - weightStep, activeLastWeight, activeLastWeight + weightStep]
+      : [activeSuggestedWeight - weightStep, activeSuggestedWeight, activeSuggestedWeight + weightStep]
           .filter((value) => value > 0)
           .map((value) => Number(value.toFixed(2)));
   const activeCompletedSets = activeExercise
@@ -879,7 +897,14 @@ export default function Session() {
                         type="button"
                         variant="outline"
                         className="h-11"
-                        onClick={() => adjustQuickWeight(activeExercise.id, activeLastWeight, -weightStep)}
+                        onClick={() =>
+                          adjustQuickWeight(
+                            activeExercise.id,
+                            activeSuggestedWeight,
+                            activeSuggestedReps,
+                            -weightStep,
+                          )
+                        }
                       >
                         -
                       </Button>
@@ -900,7 +925,14 @@ export default function Session() {
                         type="button"
                         variant="outline"
                         className="h-11"
-                        onClick={() => adjustQuickWeight(activeExercise.id, activeLastWeight, weightStep)}
+                        onClick={() =>
+                          adjustQuickWeight(
+                            activeExercise.id,
+                            activeSuggestedWeight,
+                            activeSuggestedReps,
+                            weightStep,
+                          )
+                        }
                       >
                         +
                       </Button>
@@ -913,7 +945,7 @@ export default function Session() {
                           variant="outline"
                           size="sm"
                           className="h-8"
-                          onClick={() => setQuickWeight(activeExercise.id, value)}
+                          onClick={() => setQuickWeight(activeExercise.id, value, activeSuggestedReps)}
                         >
                           {value} {unitLabel}
                         </Button>
@@ -937,7 +969,14 @@ export default function Session() {
                         type="button"
                         className="h-11 text-sm font-semibold"
                         disabled={activeExerciseDone}
-                        onClick={() => handleQuickLog(activeExercise.id, activeTargetReps, activeLastWeight)}
+                        onClick={() =>
+                          handleQuickLog(
+                            activeExercise.id,
+                            activeTargetReps,
+                            activeSuggestedWeight,
+                            activeSuggestedReps,
+                          )
+                        }
                       >
                         {activeExerciseDone ? "Exercise Complete" : "Log Next Set"}
                       </Button>

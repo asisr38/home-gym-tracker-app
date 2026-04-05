@@ -5,6 +5,7 @@
 - Core user journey: open Today view, start the scheduled session, quick-log sets, complete the session, review weekly volume and history snapshots.
 - Auth entry screens now include expectation-setting copy, inline password guidance, and password visibility toggles so the register/login/reset flows feel lower-friction on mobile.
 - The day session flow now supports in-place exercise swaps through a searchable alternative picker, so users can keep the same slot and logged progress when equipment is unavailable or a movement feels wrong.
+- Session quick log now seeds both weight and reps from the best recent completed set for that exercise when available, so users can nudge prior performance upward instead of re-entering baseline numbers every set.
 
 # Architecture Notes
 

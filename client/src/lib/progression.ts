@@ -7,6 +7,19 @@ export type ExerciseWeekBest = {
   date: string;
 };
 
+const pickBetterSet = (
+  current: ExerciseWeekBest | null,
+  candidate: ExerciseWeekBest,
+) => {
+  if (!current) return candidate;
+  if (candidate.weight > current.weight) return candidate;
+  if (candidate.weight < current.weight) return current;
+
+  const currentReps = current.reps ?? -1;
+  const candidateReps = candidate.reps ?? -1;
+  return candidateReps > currentReps ? candidate : current;
+};
+
 const parseTargetReps = (value?: string) => {
   if (!value) return null;
   const match = value.match(/\d+/);
@@ -50,23 +63,40 @@ export const getLastWeekBestForExercise = (
       if (!set.completed || set.weight === null || set.weight === undefined) return;
       const reps = set.actualReps ?? parseTargetReps(set.targetReps);
 
-      if (!best) {
-        best = { weight: set.weight, reps, date: day.dateCompleted as string };
-        return;
-      }
+      best = pickBetterSet(best, {
+        weight: set.weight,
+        reps,
+        date: day.dateCompleted as string,
+      });
+    });
+  });
 
-      if (set.weight > best.weight) {
-        best = { weight: set.weight, reps, date: day.dateCompleted as string };
-        return;
-      }
+  return best;
+};
 
-      if (set.weight === best.weight) {
-        const bestReps = best.reps ?? -1;
-        const currentReps = reps ?? -1;
-        if (currentReps > bestReps) {
-          best = { weight: set.weight, reps, date: day.dateCompleted as string };
-        }
-      }
+export const getBestSetForExercise = (
+  history: WorkoutDay[],
+  exerciseName: string,
+): ExerciseWeekBest | null => {
+  if (!exerciseName) return null;
+
+  let best: ExerciseWeekBest | null = null;
+
+  history.forEach((day) => {
+    if (!day.dateCompleted) return;
+
+    const exercise = day.exercises.find((item) => item.name === exerciseName);
+    if (!exercise) return;
+
+    exercise.sets.forEach((set) => {
+      if (!set.completed || set.weight === null || set.weight === undefined) return;
+
+      const reps = set.actualReps ?? parseTargetReps(set.targetReps);
+      best = pickBetterSet(best, {
+        weight: set.weight,
+        reps,
+        date: day.dateCompleted as string,
+      });
     });
   });
 
