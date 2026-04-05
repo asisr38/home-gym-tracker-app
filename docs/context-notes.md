@@ -24,7 +24,7 @@
 - `next:dev` now runs Next directly; it no longer boots the Express API as a proxy dependency.
 - The PWA service worker is production-only. In local Next development the app unregisters any existing worker and clears `ironstride-*` caches so stale cached HTML or `/_next` chunks do not mask current route changes.
 - Route gating only blocks on cloud user-data sync when an authenticated session has no usable local snapshot yet. Public guest routes render immediately, and authenticated sync falls back after a short timeout so local-first state is not hidden behind an indefinite loading screen.
-- Vercel deployments must use Next's default output directory. `vercel.json` explicitly clears any stale custom output directory so old Vite-era `dist` expectations do not break deploys.
+- Vercel deployments must use the Next.js framework preset and default output handling. `vercel.json` pins `framework: "nextjs"` so stale Vite-era `dist` expectations in project settings do not break deploys.
 - The default lifecycle scripts now target Next (`dev`, `build`, `start`). The old Vite/Express flow is still available as `legacy:dev`, `legacy:build`, and `legacy:start` during migration cleanup.
 - Shared source of truth for persisted data lives in `shared/userData.ts`. Store exports `schemaVersion: 2` through `getUserData()`.
 - Completed workout history is intentionally pruned to the latest 30 days on both client and server.
